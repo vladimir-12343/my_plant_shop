@@ -1,42 +1,86 @@
+/* Tailwind v4 — импорт один раз, без @tailwind base/components/utilities */
+@import "tailwindcss";
+
+/* Тематические токены Tailwind (дают классы вроде bg-brand-500, text-text-primary) */
+@theme {
+  /* Шрифты */
+  --font-sans: Inter, system-ui, Arial, sans-serif;
+  --font-display: Manrope, Inter, system-ui, Arial, sans-serif;
+
+  /* Брендовая палитра */
+  --color-brand-50:  #ECF8F0;
+  --color-brand-100: #D4F0DF;
+  --color-brand-200: #A9E1BF;
+  --color-brand-300: #7FD2A0;
+  --color-brand-400: #5CC889;
+  --color-brand-500: #46A36C; /* основной */
+  --color-brand-600: #3B8C5C;
+  --color-brand-700: #2F724B;
+  --color-brand-800: #23583A;
+  --color-brand-900: #173E29;
+
+  --color-accent-50:  #FFF6E6;
+  --color-accent-100: #FFECCB;
+  --color-accent-200: #FFD899;
+  --color-accent-300: #FFC166;
+  --color-accent-400: #FFAA33;
+  --color-accent-500: #F59E0B; /* CTA */
+  --color-accent-600: #D58600;
+  --color-accent-700: #A96800;
+  --color-accent-800: #7D4C00;
+  --color-accent-900: #533200;
+
+  /* Нейтральные/текстовые */
+  --color-surface-bg:   #F8FAFB;  /* фон светлой темы по умолчанию */
+  --color-surface-1:    #FFFFFF;
+  --color-surface-2:    #F3F6F8;
+  --color-surface-line: #E4EBF2;
+
+  --color-text-primary:   #0F1214;
+  --color-text-secondary: #4A5560;
+  --color-text-muted:     #6B7280;
+}
+
+/* Переменные для совместимости со стартовым шаблоном Next (твой page.module.css их использует) */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: var(--color-surface-bg);
+  --foreground: var(--color-text-primary);
+
+  /* Чтобы var(--font-geist-*) работали даже без next/font */
+  --font-geist-sans: var(--font-sans);
+  --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Тёмная тема — переключай через <html data-theme="dark"> или на корневом элементе */
+:root[data-theme="dark"] {
+  --color-surface-bg:   #0F1214;
+  --color-surface-1:    #151A1E;
+  --color-surface-2:    #1D2329;
+  --color-surface-line: #2A3238;
+
+  --color-text-primary:   #E7ECEF;
+  --color-text-secondary: #A9B4BE;
+  --color-text-muted:     #7A8894;
+
+  --background: var(--color-surface-bg);
+  --foreground: var(--color-text-primary);
 }
 
-html,
+/* Базовые стили страницы */
+html, body { height: 100%; }
 body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  color: var(--foreground);
+  font-family: var(--font-sans);
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+/* Доп. полезные утилиты (по желанию) */
+.container-bp { max-width: 80rem; margin-inline: auto; padding-inline: 1rem; }
+/* Скрываем скроллбар, но оставляем скроллинг */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE и Edge */
+  scrollbar-width: none; /* Firefox */
 }

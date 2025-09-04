@@ -1,0 +1,21 @@
+services:
+  plant_shop_db:
+    image: postgres:15
+    container_name: plant_shop_db
+    env_file: .env  # Используем переменные из .env файла
+    environment:
+      POSTGRES_USER: plant_admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD}  # Берем из .env
+      POSTGRES_DB: plant_shop
+    ports:
+      - "5433:5432"
+    volumes:
+      - plant_shop_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plant_admin -d plant_shop"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  plant_shop_data:
