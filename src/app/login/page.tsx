@@ -12,7 +12,6 @@ async function loginAction(formData: FormData) {
   const rawEmail = formData.get("email");
   const rawPassword = formData.get("password");
 
-  // проверяем наличие email и password
   if (!rawEmail || !rawPassword) {
     redirect("/login?e=1");
   }
@@ -31,7 +30,6 @@ async function loginAction(formData: FormData) {
       httpOnly: true,
       sameSite: "lax",
     });
-
     redirect("/admin/products");
   }
 
@@ -50,13 +48,14 @@ async function loginAction(formData: FormData) {
   redirect("/account");
 }
 
-// 👇 Обязательный React-компонент для страницы
-export default function LoginPage({
+// 👇 Страница — асинхронная, ждём searchParams
+export default async function LoginPage({
   searchParams,
 }: {
-  searchParams?: { e?: string };
+  searchParams?: Promise<{ e?: string }>;
 }) {
-  const error = searchParams?.e === "1";
+  const sp = (await searchParams) ?? {};
+  const error = sp.e === "1";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white px-4">

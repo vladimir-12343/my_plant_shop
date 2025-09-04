@@ -1,3 +1,4 @@
+// src/components/ClientLayoutWrapper.tsx
 "use client"
 
 import { useEffect, useRef, useState } from "react"
@@ -5,32 +6,44 @@ import Header from "./Header"
 import Footer from "./Footer"
 import CartDrawer from "./CartDrawer"
 
-export default function ClientLayoutWrapper({
-  children,
-  userId,
-}: {
-  children: React.ReactNode
-  userId: string
-}) {
-  const headerRef = useRef<HTMLElement>(null)
-  const [headerHeight, setHeaderHeight] = useState(0)
+type Props = { children: React.ReactNode }
+
+export default function ClientLayoutWrapper({ children }: Props) {
+  const headerRef = useRef<HTMLElement | null>(null)
+  const [headerH, setHeaderH] = useState(0)
 
   useEffect(() => {
-    const updateHeight = () => {
-      if (headerRef.current) {
-        setHeaderHeight(headerRef.current.offsetHeight)
-      }
+    const el = headerRef.current
+    if (!el) return
+
+    const measure = () => {
+      const h = Math.round(el.getBoundingClientRect().height || 0)
+      setHeaderH(h)
     }
-    updateHeight()
-    window.addEventListener("resize", updateHeight)
-    return () => window.removeEventListener("resize", updateHeight)
+
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    window.addEventListener("resize", measure)
+
+    return () => {
+      ro.disconnect()
+      window.removeEventListener("resize", measure)
+    }
   }, [])
 
   return (
     <>
+      {/* Фиксированная шапка */}
       <Header ref={headerRef} />
-      <CartDrawer userId={userId} />
-      <main style={{ paddingTop: headerHeight }}>{children}</main>
+
+      {/* Дроуэр поверх всего */}
+      <CartDrawer />
+
+      {/* Прокладка на высоту шапки, чтобы контент не наезжал */}
+      <div style={{ height: headerH }} aria-hidden="true" />
+
+      <main>{children}</main>
       <Footer />
     </>
   )

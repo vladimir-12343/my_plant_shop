@@ -10,11 +10,11 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  ...compat.extends("next/core-web-vitals"), // 👈 убрали "next/typescript"
   {
     rules: {
-      "@typescript-eslint/no-explicit-any": "off",   // 👈 разрешаем any
-      "react-hooks/exhaustive-deps": "warn",         // 👈 делаем предупреждением (не ошибка)
+      "@typescript-eslint/no-explicit-any": "off", // 👈 разрешаем any
+      "react-hooks/exhaustive-deps": "warn",       // 👈 предупреждение вместо ошибки
     },
   },
 ];

@@ -19,7 +19,6 @@ type AdminProductsClientProps = {
 export default function AdminProductsClient({
   products,
   categories,
-  // lowOnlyFromServer,  // ← больше не нужен в вычислении
   lowStockThreshold,
 }: AdminProductsClientProps) {
   const sp = useSearchParams();
@@ -27,13 +26,10 @@ export default function AdminProductsClient({
 
   const q = (sp.get("q") || "").trim();
   const categoryFilter = sp.get("category") || "";
-
-  // Источник правды на клиенте — только URL
   const lowOnly = sp.get("low") === "1";
 
   const threshold = Number(lowStockThreshold ?? 5);
 
-  const productsSafe = Array.isArray(products) ? products : [];
   const categoriesSafe = Array.isArray(categories) ? categories : [];
 
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
@@ -67,13 +63,16 @@ export default function AdminProductsClient({
   }
 
   const filteredProducts = useMemo(() => {
+    const productsSafe = Array.isArray(products) ? products : [];
     if (!productsSafe.length) return [];
     const qLower = q.toLowerCase();
 
     return productsSafe
       .filter((p) => {
         const okName = (p?.name || "").toLowerCase().includes(qLower);
-        const okCat = categoryFilter ? String(p?.categoryId) === String(categoryFilter) : true;
+        const okCat = categoryFilter
+          ? String(p?.categoryId) === String(categoryFilter)
+          : true;
         const okLow = lowOnly ? Number(p?.stock ?? 0) <= threshold : true;
         return okName && okCat && okLow;
       })
@@ -81,7 +80,7 @@ export default function AdminProductsClient({
         if (!lowOnly) return 0;
         return (a.stock ?? 0) - (b.stock ?? 0);
       });
-  }, [productsSafe, q, categoryFilter, lowOnly, threshold]);
+  }, [products, q, categoryFilter, lowOnly, threshold]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
@@ -124,7 +123,7 @@ export default function AdminProductsClient({
             </select>
             <button
               type="submit"
-              className="rounded-xl border px-4 py-2 bg-[#c7a17a] text-white hover:bg-[#b8926д] transition"
+              className="rounded-xl border px-4 py-2 bg-[#c7a17a] text-white hover:bg-[#b8926d] transition"
             >
               Применить
             </button>
@@ -162,34 +161,53 @@ export default function AdminProductsClient({
         {/* легенда цветов */}
         <div className="flex items-center gap-4 text-xs text-gray-600 mb-4">
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded-sm bg-red-500" /> ≤ 2 шт.
+            <span className="inline-block w-3 h-3 rounded-sm bg-red-500" /> ≤ 2
+            шт.
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded-sm bg-orange-400" /> ≤ {threshold} шт.
+            <span className="inline-block w-3 h-3 rounded-sm bg-orange-400" /> ≤{" "}
+            {threshold} шт.
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500" /> &gt; {threshold} шт.
+            <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500" />{" "}
+            &gt; {threshold} шт.
           </span>
         </div>
 
         {filteredProducts.length === 0 ? (
           <p className="text-gray-500">Товары не найдены</p>
         ) : (
-          <ul className="grid grid-cols-1 см:grid-cols-2 lg:grid-cols-3 gap-6">
+          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProducts.map((p) => {
               const stock: number = Number(p?.stock ?? 0);
               const stockColor =
-                stock <= 2 ? "text-red-600" : stock <= threshold ? "text-orange-600" : "text-emerald-600";
+                stock <= 2
+                  ? "text-red-600"
+                  : stock <= threshold
+                  ? "text-orange-600"
+                  : "text-emerald-600";
               const stockDot =
-                stock <= 2 ? "bg-red-500" : stock <= threshold ? "bg-orange-400" : "bg-emerald-500";
+                stock <= 2
+                  ? "bg-red-500"
+                  : stock <= threshold
+                  ? "bg-orange-400"
+                  : "bg-emerald-500";
 
               return (
                 <li key={p.id} className="group">
-                  <ProductCard product={p} mode="admin" onEdit={() => setEditingProduct(p)} />
+                  <ProductCard
+                    product={p}
+                    mode="admin"
+                    onEdit={() => setEditingProduct(p)}
+                  />
                   <div className="mt-2 flex items-center justify-between">
-                    <div className={`text-sm font-medium ${stockColor}`}>Остаток: {stock} шт.</div>
+                    <div className={`text-sm font-medium ${stockColor}`}>
+                      Остаток: {stock} шт.
+                    </div>
                     <div className="flex items-center gap-2">
-                      <span className={`inline-block w-2.5 h-2.5 rounded-full ${stockDot}`} />
+                      <span
+                        className={`inline-block w-2.5 h-2.5 rounded-full ${stockDot}`}
+                      />
                       {stock <= threshold && (
                         <Link
                           href={`${pathname}${buildQuery({ low: "1" })}`}

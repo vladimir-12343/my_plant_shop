@@ -8,11 +8,11 @@ import { useRouter } from "next/navigation";
 export interface ProductCardProduct {
   id: number;
   name: string;
-  price: number;                   // в копейках/центах
+  price: number; // в копейках/центах
   discount?: number | null;
   coverImage?: string | null;
   stock?: number | null;
-  images?: string[];
+  images?: string[] | null;
 }
 
 export interface ProductCardProps {
@@ -28,6 +28,18 @@ export default function ProductCard({
 }: ProductCardProps) {
   const { addToCart } = useCart();
   const router = useRouter();
+
+  // безопасно выбираем главное изображение
+  const fallback = "/images/placeholder-product.jpg";
+  const primaryImage = (() => {
+    const c =
+      typeof product.coverImage === "string" ? product.coverImage.trim() : "";
+    if (c) return c;
+    const arr = Array.isArray(product.images) ? product.images : [];
+    const firstValid =
+      arr.find((u) => typeof u === "string" && u.trim().length > 0) || "";
+    return firstValid || fallback;
+  })();
 
   const discount = product.discount ?? 0;
   const hasDiscount = discount > 0;
@@ -50,10 +62,12 @@ export default function ProductCard({
       {/* Картинка как ссылка */}
       <Link href={`/shop/${product.id}`} className="relative aspect-square bg-gray-100 block">
         <Image
-          src={product.coverImage || "/images/placeholder-product.jpg"}
-          alt={product.name}
+          src={primaryImage} // ← никогда не пустая строка
+          alt={product.name || "Товар"}
           fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           className="object-cover"
+          priority={false}
         />
         {hasDiscount && (
           <div className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
@@ -65,7 +79,7 @@ export default function ProductCard({
       {/* Контент */}
       <div className="p-4 flex flex-col flex-1">
         <Link href={`/shop/${product.id}`}>
-          <h3 className="font-bold text-lg hover:underline">{product.name}</h3>
+          <h3 className="font-bold text-lg hover:underline line-clamp-2">{product.name}</h3>
         </Link>
 
         {/* Цена */}
@@ -88,9 +102,9 @@ export default function ProductCard({
                 id: product.id,
                 name: product.name,
                 price: newPrice,
-                coverImage: product.coverImage,
+                coverImage: primaryImage, // ← используем безопасное изображение
                 quantity: 1,
-                stock: product.stock ?? 0, // 👈 обязательно передаём stock
+                stock: product.stock ?? 0,
               })
             }
             disabled={!product.stock || product.stock <= 0}

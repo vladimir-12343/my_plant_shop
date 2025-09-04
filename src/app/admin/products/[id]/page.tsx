@@ -1,6 +1,8 @@
 import prisma from "@/lib/prisma"
 import { ProductForm } from "@/components/admin/ProductForm"
 
+export const dynamic = "force-dynamic"
+
 export default async function EditProductPage({
   params,
 }: {
@@ -8,7 +10,10 @@ export default async function EditProductPage({
 }) {
   const product = await prisma.product.findUnique({
     where: { id: Number(params.id) },
-    include: { category: true },
+    include: {
+      category: true,
+      images: true, // 👈 добавили
+    },
   })
 
   const categories = await prisma.category.findMany({
@@ -22,7 +27,21 @@ export default async function EditProductPage({
   return (
     <div className="border rounded-2xl p-4">
       <h2 className="text-lg font-bold mb-4">Редактировать товар</h2>
-      <ProductForm initial={product} categories={categories} />
+      <ProductForm
+        initial={{
+          id: product.id,
+          name: product.name,
+          description: product.description ?? "",
+          price: product.price,
+          compareAtPrice: product.compareAtPrice ?? undefined,
+          stock: product.stock ?? 0,
+          sku: product.sku ?? "",
+          categoryId: product.categoryId,
+          images: product.images.map((img) => img.url), // 👈 преобразовали
+          discount: product.discount ?? 0,
+        }}
+        categories={categories}
+      />
     </div>
   )
 }

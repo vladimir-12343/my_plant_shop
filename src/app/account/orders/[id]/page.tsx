@@ -4,19 +4,24 @@ import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 
-export default async function OrderDetailPage({ params }: { params: { id: string } }) {
+export default async function OrderDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params // 👈 ждём Promise
   const c = await cookies()
   const email = c.get("userEmail")?.value
 
   if (!email) redirect("/login")
 
   const order = await prisma.order.findUnique({
-    where: { id: Number(params.id) },
+    where: { id: Number(id) },
     include: { user: true },
   })
 
-  if (!order || order.user.email !== email) {
-    redirect("/account") // защита: чужие заказы недоступны
+  if (!order || order.user?.email !== email) {
+    redirect("/account")
   }
 
   const products: Array<{ id: number; name: string; price: number; quantity: number }> =
@@ -36,12 +41,15 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               ? "bg-yellow-100 text-yellow-800"
               : order.status === "IN_PROGRESS"
               ? "bg-blue-100 text-blue-800"
-              : "bg-green-100 text-green-800"
+              : order.status === "READY"
+              ? "bg-green-100 text-green-800"
+              : "bg-red-100 text-red-800"
           }`}
         >
           {order.status === "NEW" && "Новый"}
           {order.status === "IN_PROGRESS" && "В работе"}
           {order.status === "READY" && "Готов"}
+          {order.status === "CANCELLED" && "Отменён"}
         </span>
       </p>
 

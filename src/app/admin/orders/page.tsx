@@ -1,49 +1,65 @@
+// src/app/admin/orders/page.tsx
 import prisma from "@/lib/prisma"
 import AdminOrdersKanban from "@/components/admin/AdminOrdersKanban"
+import type { Prisma } from "@prisma/client"
+import { OrderStatus } from "@prisma/client" // ← импорт как значения!
 
 export const dynamic = "force-dynamic"
+
+type Search = {
+  status?: string
+  date?: string
+  q?: string
+  sort?: string
+}
 
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams?: {
-    status?: string
-    date?: string
-    q?: string
-    sort?: string
-  }
+  searchParams?: Promise<Search>
 }) {
-  const status = searchParams?.status || ""
-  const date = searchParams?.date || ""
-  const q = (searchParams?.q || "").trim().toLowerCase()
-  const sort = searchParams?.sort || "date_desc"
+  const sp = (await searchParams) ?? {}
 
-  // фильтр по дате
-  let dateFilter: any = {}
+  const status = sp.status || ""
+  const date = sp.date || ""
+  const q = (sp.q || "").trim().toLowerCase()
+  const sort = sp.sort || "date_desc"
+
+  // Фильтр по дате
+  let createdAtFilter: Prisma.DateTimeFilter | undefined
   if (date === "today") {
-    dateFilter = { gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+    createdAtFilter = { gte: new Date(new Date().setHours(0, 0, 0, 0)) }
   } else if (date === "week") {
     const d = new Date()
     d.setDate(d.getDate() - 7)
-    dateFilter = { gte: d }
+    createdAtFilter = { gte: d }
   } else if (date === "month") {
     const d = new Date()
     d.setMonth(d.getMonth() - 1)
-    dateFilter = { gte: d }
+    createdAtFilter = { gte: d }
   }
 
-  // сортировка
-  let orderBy: any = { createdAt: "desc" }
-  if (sort === "date_asc") orderBy = { createdAt: "asc" }
-  if (sort === "total_desc") orderBy = { total: "desc" }
-  if (sort === "total_asc") orderBy = { total: "asc" }
+  // Сортировка
+  const orderBy: Prisma.OrderOrderByWithRelationInput =
+    sort === "date_asc"
+      ? { createdAt: "asc" }
+      : sort === "total_desc"
+      ? { total: "desc" }
+      : sort === "total_asc"
+      ? { total: "asc" }
+      : { createdAt: "desc" }
 
-  // запрос заказов (всегда массив!)
+  // Валидируем статус по enum (нужен runtime-объект OrderStatus)
+  const validStatus = (Object.values(OrderStatus) as string[]).includes(status)
+    ? (status as keyof typeof OrderStatus)
+    : undefined
+
+  // Запрос заказов
   const orders =
     (await prisma.order.findMany({
       where: {
-        ...(status ? { status } : {}),
-        ...(Object.keys(dateFilter).length ? { createdAt: dateFilter } : {}),
+        ...(validStatus ? { status: validStatus as any } : {}), // Prisma примет enum
+        ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
         ...(q
           ? {
               OR: [
@@ -64,31 +80,21 @@ export default async function OrdersPage({
 
       {/* Форма фильтров */}
       <form className="flex flex-wrap gap-3 items-center border-b pb-4 mb-6">
-        {/* фильтр по статусу */}
-        <select
-          name="status"
-          defaultValue={status}
-          className="border rounded px-3 py-2"
-        >
+        <select name="status" defaultValue={status} className="border rounded px-3 py-2">
           <option value="">Все статусы</option>
           <option value="NEW">Новые</option>
           <option value="IN_PROGRESS">В работе</option>
           <option value="READY">Готовые</option>
+          <option value="CANCELLED">Отменённые</option>
         </select>
 
-        {/* фильтр по дате */}
-        <select
-          name="date"
-          defaultValue={date}
-          className="border rounded px-3 py-2"
-        >
+        <select name="date" defaultValue={date} className="border rounded px-3 py-2">
           <option value="">За всё время</option>
           <option value="today">Сегодня</option>
           <option value="week">За неделю</option>
           <option value="month">За месяц</option>
         </select>
 
-        {/* поиск по клиенту */}
         <input
           type="text"
           name="q"
@@ -97,12 +103,7 @@ export default async function OrdersPage({
           className="border rounded px-3 py-2 flex-1"
         />
 
-        {/* сортировка */}
-        <select
-          name="sort"
-          defaultValue={sort}
-          className="border rounded px-3 py-2"
-        >
+        <select name="sort" defaultValue={sort} className="border rounded px-3 py-2">
           <option value="date_desc">Дата: новые сверху</option>
           <option value="date_asc">Дата: старые сверху</option>
           <option value="total_desc">Сумма: дороже → дешевле</option>
@@ -117,7 +118,6 @@ export default async function OrdersPage({
         </button>
       </form>
 
-      {/* Kanban-доска */}
       <AdminOrdersKanban orders={orders} />
     </div>
   )

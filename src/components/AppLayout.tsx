@@ -1,9 +1,6 @@
-import { cookies } from "next/headers"
+// src/components/AppLayout.tsx (или app/layout.tsx — смотри у себя путь)
 import ClientLayoutWrapper from "./ClientLayoutWrapper"
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const c = await cookies()
-  const userId = c.get("userId")?.value || ""
-
-  return <ClientLayoutWrapper userId={userId}>{children}</ClientLayoutWrapper>
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return <ClientLayoutWrapper>{children}</ClientLayoutWrapper>
 }
