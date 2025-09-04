@@ -11,7 +11,6 @@ export const dynamic = "force-dynamic";
 type AdminProductsClientProps = {
   products?: any[];
   categories?: any[];
-  // server-only hints (не используем в клиентской фильтрации)
   lowOnly?: boolean;
   lowStockThreshold?: number;
 };
@@ -27,10 +26,17 @@ export default function AdminProductsClient({
   const q = (sp.get("q") || "").trim();
   const categoryFilter = sp.get("category") || "";
   const lowOnly = sp.get("low") === "1";
-
   const threshold = Number(lowStockThreshold ?? 5);
 
-  const categoriesSafe = Array.isArray(categories) ? categories : [];
+  const categoriesSafe = useMemo(
+    () => (Array.isArray(categories) ? categories : []),
+    [categories]
+  );
+
+  const productsSafe = useMemo(
+    () => (Array.isArray(products) ? products : []),
+    [products]
+  );
 
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
 
@@ -50,7 +56,6 @@ export default function AdminProductsClient({
     };
   }, [editingProduct]);
 
-  // Собираем query, сохраняя текущие параметры
   function buildQuery(next: Record<string, string | undefined>) {
     const params = new URLSearchParams(sp.toString());
     Object.entries(next).forEach(([k, v]) => {
@@ -63,7 +68,6 @@ export default function AdminProductsClient({
   }
 
   const filteredProducts = useMemo(() => {
-    const productsSafe = Array.isArray(products) ? products : [];
     if (!productsSafe.length) return [];
     const qLower = q.toLowerCase();
 
@@ -80,11 +84,11 @@ export default function AdminProductsClient({
         if (!lowOnly) return 0;
         return (a.stock ?? 0) - (b.stock ?? 0);
       });
-  }, [products, q, categoryFilter, lowOnly, threshold]);
+  }, [productsSafe, q, categoryFilter, lowOnly, threshold]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
-      {/* левая колонка — форма */}
+      {/* Форма */}
       <section className="border rounded-2xl p-4 bg-white shadow-sm">
         <h2 className="font-medium mb-3 text-lg">
           {editingProduct ? "Редактировать товар" : "Создать товар"}
@@ -97,10 +101,9 @@ export default function AdminProductsClient({
         />
       </section>
 
-      {/* правая колонка — список */}
+      {/* Список */}
       <section className="border rounded-2xl p-4 bg-white shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
-          {/* форма фильтров */}
           <form className="flex gap-3 w-full sm:w-auto" action="">
             <input
               type="text"
@@ -129,7 +132,6 @@ export default function AdminProductsClient({
             </button>
           </form>
 
-          {/* переключатель Все / Мало на складе */}
           <div className="flex items-center gap-2">
             <Link
               href={`${pathname}${buildQuery({ low: undefined })}`}
@@ -149,7 +151,6 @@ export default function AdminProductsClient({
             </Link>
           </div>
 
-          {/* кнопка перехода на страницу заказов */}
           <Link
             href="/admin/orders"
             className="inline-block rounded-xl px-4 py-2 bg-green-600 text-white hover:bg-green-700 transition"
@@ -158,7 +159,6 @@ export default function AdminProductsClient({
           </Link>
         </div>
 
-        {/* легенда цветов */}
         <div className="flex items-center gap-4 text-xs text-gray-600 mb-4">
           <span className="inline-flex items-center gap-1">
             <span className="inline-block w-3 h-3 rounded-sm bg-red-500" /> ≤ 2
