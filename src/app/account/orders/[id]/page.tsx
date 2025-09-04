@@ -1,15 +1,13 @@
-import prisma from "@/lib/prisma";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-
-export const dynamic = "force-dynamic";
+import prisma from "@/lib/prisma";
 
 export default async function OrderDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = await params; // 👈 ждём Promise
+  const { id } = params;
   const c = await cookies();
   const email = c.get("userEmail")?.value;
 

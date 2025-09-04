@@ -1,37 +1,44 @@
 {
   "compilerOptions": {
+    /* Базовые настройки */
     "target": "ES2017",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
+    "lib": ["dom", "dom.iterable", "esnext"],
     "module": "esnext",
     "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    "noEmit": true,
+
+    /* Совместимость */
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+
+    /* Проверки */
+    "strict": true,                        // включает все строгие проверки
+    "skipLibCheck": false,                 // проверять типы в node_modules
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "noUncheckedIndexedAccess": true,      // индексирование даёт |undefined
+    "noPropertyAccessFromIndexSignature": true,
+    "exactOptionalPropertyTypes": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+
+    /* Плагины */
     "plugins": [
-      {
-        "name": "next"
-      }
+      { "name": "next" }
     ],
+
+    /* Алиасы */
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     }
   },
   "include": [
+    "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    "next-env.d.ts",
     "tailwind.config.js",
     ".next/types/**/*.ts"
   ],
