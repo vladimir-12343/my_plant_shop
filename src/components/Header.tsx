@@ -47,7 +47,6 @@ const SHOP_SECTIONS = [
   },
 ]
 
-// ⬇️ forwardRef позволяет RootLayout получить высоту Header
 const Header = forwardRef<HTMLElement>((props, ref) => {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
@@ -234,22 +233,68 @@ const Header = forwardRef<HTMLElement>((props, ref) => {
             />
           </Link>
 
-          {/* Бургер */}
-          <button
-            onClick={() => setOpen(!open)}
-            className="text-gray-700 hover:text-gray-900"
-            aria-label="Меню"
-          >
-            {open ? (
-              <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          {/* Правая часть */}
+          <div className="flex items-center gap-4">
+            {/* Аккаунт (mobile с меню) */}
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                aria-label="Аккаунт"
+                className="hover:text-gray-900"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" stroke="currentColor" fill="none">
+                  <path strokeWidth="1.8" strokeLinecap="round" d="M20 21a8 8 0 10-16 0" />
+                  <circle cx="12" cy="7" r="4" strokeWidth="1.8" />
+                </svg>
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 mt-2 w-40 rounded-xl border bg-white shadow-lg py-2 z-50">
+                  {renderAccountMenu()}
+                </div>
+              )}
+            </div>
+
+            {/* Поиск */}
+            <Link href="/search" aria-label="Поиск">
+              <svg width="24" height="24" viewBox="0 0 24 24" stroke="currentColor" fill="none">
+                <circle cx="11" cy="11" r="7" strokeWidth="1.8" />
+                <path d="M20 20l-3.5-3.5" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
-            ) : (
-              <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+            </Link>
+
+            {/* Корзина */}
+            {!auth.admin && (
+              <button onClick={() => setCartOpen(true)} aria-label="Корзина" className="relative">
+                <svg width="24" height="24" viewBox="0 0 24 24" stroke="currentColor" fill="none">
+                  <path d="M6 6h15l-2 9H8L6 6Z" strokeWidth="1.8" />
+                  <circle cx="9" cy="20" r="1.5" />
+                  <circle cx="18" cy="20" r="1.5" />
+                </svg>
+                {cartCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold px-1.5 rounded-full">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
             )}
-          </button>
+
+            {/* Бургер */}
+            <button
+              onClick={() => setOpen(!open)}
+              className="text-gray-700 hover:text-gray-900"
+              aria-label="Меню"
+            >
+              {open ? (
+                <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* мобильное меню */}
