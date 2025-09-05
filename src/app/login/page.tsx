@@ -22,7 +22,7 @@ async function loginAction(formData: FormData) {
   const c = await cookies();
 
   // ⚡ Админ (по ENV)
-  if (password === process.env.ADMIN_PASSWORD) {
+  if (password === process.env["ADMIN_PASSWORD"]) {
     c.set("admin", "1", { path: "/", httpOnly: true, sameSite: "lax" });
     c.set("userEmail", email, { path: "/", sameSite: "lax" });
     c.set("admin_last_page", "/admin/products", {

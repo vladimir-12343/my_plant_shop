@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { ProductForm } from "@/components/admin/ProductForm";
+import { ProductForm, type Initial as ProductInitial } from "@/components/admin/ProductForm";
 import ProductCard from "@/components/ProductCard";
 
 export const dynamic = "force-dynamic";
@@ -40,19 +40,29 @@ export default function AdminProductsClient({
 
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
 
-  const initialForForm = useMemo(() => {
+  // Готовим initial для формы редактирования и убираем undefined-поля
+  const initialForForm: ProductInitial | undefined = useMemo(() => {
     if (!editingProduct) return undefined;
-    return {
+
+    const base: ProductInitial = {
       id: editingProduct.id,
       name: editingProduct.name,
       description: editingProduct.description ?? "",
       price: editingProduct.price,
-      compareAtPrice: editingProduct.compareAtPrice ?? undefined,
       stock: editingProduct.stock ?? 0,
-      sku: editingProduct.sku ?? "",
-      categoryId: editingProduct.categoryId,
       images: Array.isArray(editingProduct.images) ? editingProduct.images : [],
-      discount: editingProduct.discount ?? 0,
+    };
+
+    return {
+      ...base,
+      ...(editingProduct.compareAtPrice != null
+        ? { compareAtPrice: editingProduct.compareAtPrice }
+        : {}),
+      ...(editingProduct.sku ? { sku: editingProduct.sku } : {}),
+      ...(editingProduct.categoryId != null
+        ? { categoryId: editingProduct.categoryId }
+        : {}),
+      ...(editingProduct.discount != null ? { discount: editingProduct.discount } : {}),
     };
   }, [editingProduct]);
 
@@ -96,7 +106,7 @@ export default function AdminProductsClient({
         <ProductForm
           key={editingProduct ? `edit-${editingProduct.id}` : "new"}
           categories={categoriesSafe.map((c) => ({ id: c.id, name: c.name }))}
-          initial={initialForForm}
+          {...(initialForForm ? { initial: initialForForm } : {})} 
           onCancel={() => setEditingProduct(null)}
         />
       </section>
@@ -161,16 +171,13 @@ export default function AdminProductsClient({
 
         <div className="flex items-center gap-4 text-xs text-gray-600 mb-4">
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded-sm bg-red-500" /> ≤ 2
-            шт.
+            <span className="inline-block w-3 h-3 rounded-sm bg-red-500" /> ≤ 2 шт.
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded-sm bg-orange-400" /> ≤{" "}
-            {threshold} шт.
+            <span className="inline-block w-3 h-3 rounded-sm bg-orange-400" /> ≤ {threshold} шт.
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500" />{" "}
-            &gt; {threshold} шт.
+            <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500" /> &gt; {threshold} шт.
           </span>
         </div>
 
@@ -205,9 +212,7 @@ export default function AdminProductsClient({
                       Остаток: {stock} шт.
                     </div>
                     <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-block w-2.5 h-2.5 rounded-full ${stockDot}`}
-                      />
+                      <span className={`inline-block w-2.5 h-2.5 rounded-full ${stockDot}`} />
                       {stock <= threshold && (
                         <Link
                           href={`${pathname}${buildQuery({ low: "1" })}`}

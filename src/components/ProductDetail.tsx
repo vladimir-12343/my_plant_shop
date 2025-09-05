@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Image from "next/image"
-import { useCart } from "@/components/CartContext"  // ✅ подключаем корзину
+import { useCart } from "@/components/CartContext"
 
 interface Product {
   id: number
@@ -15,7 +15,7 @@ interface Product {
 }
 
 export default function ProductDetail({ product }: { product: Product }) {
-  const { addToCart } = useCart() // ✅ функция для добавления в корзину
+  const { addToCart } = useCart()
 
   const discount = product.discount ?? 0
   const hasDiscount = discount > 0
@@ -26,27 +26,18 @@ export default function ProductDetail({ product }: { product: Product }) {
 
   const [quantity, setQuantity] = useState(1)
 
-  const increase = () => {
-    if (quantity < product.stock) {
-      setQuantity(quantity + 1)
-    }
-  }
-
-  const decrease = () => {
-    if (quantity > 1) {
-      setQuantity(quantity - 1)
-    }
-  }
+  const increase = () => setQuantity(q => (q < product.stock ? q + 1 : q))
+  const decrease = () => setQuantity(q => (q > 1 ? q - 1 : q))
 
   const handleAddToCart = () => {
     addToCart({
-        id: product.id,
-        name: product.name,
-        price: newPrice,
-        coverImage: product.coverImage,
-        quantity,
-        stock: product.stock, // 👈 теперь корзина знает остаток
-      })
+      id: product.id,
+      name: product.name,
+      price: newPrice,
+      coverImage: product.coverImage ?? null, // ✅ нормализуем: string | null
+      quantity,
+      stock: product.stock,
+    })
   }
 
   return (
@@ -97,9 +88,7 @@ export default function ProductDetail({ product }: { product: Product }) {
               value={quantity}
               onChange={(e) => {
                 const val = Number(e.target.value)
-                if (val >= 1 && val <= product.stock) {
-                  setQuantity(val)
-                }
+                if (val >= 1 && val <= product.stock) setQuantity(val)
               }}
               className="w-16 text-center border rounded"
             />

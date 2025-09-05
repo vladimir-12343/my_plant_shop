@@ -110,15 +110,18 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("API Error:", error);
 
+    const isDev = process.env.NODE_ENV === "development";
+    const details =
+      isDev && error instanceof Error
+        ? error.message
+        : isDev
+        ? "Неизвестная ошибка"
+        : undefined;
+
     const response: ApiResponse = {
       success: false,
       error: "Ошибка загрузки данных",
-      details:
-        process.env.NODE_ENV === "development"
-          ? error instanceof Error
-            ? error.message
-            : "Неизвестная ошибка"
-          : undefined,
+      ...(details !== undefined ? { details } : {}), // ⬅️ условно добавляем ключ
       timestamp: new Date().toISOString(),
     };
 
@@ -141,7 +144,7 @@ export async function POST(req: Request) {
     const product = await prisma.product.create({
       data: {
         name,
-        slug: slugify(name), // ✅ обязательно
+        slug: slugify(name),
         price: Number(body.price),
         compareAtPrice: body.compareAtPrice ? Number(body.compareAtPrice) : null,
         stock: body.stock ?? 0,
@@ -159,12 +162,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, product });
   } catch (error) {
     console.error("Create product error:", error);
+
+    const isDev = process.env.NODE_ENV === "development";
     return NextResponse.json(
       {
         success: false,
         error: "Не удалось создать товар",
-        details:
-          process.env.NODE_ENV === "development" ? `${error}` : undefined,
+        ...(isDev ? { details: String(error) } : {}), // ⬅️ условно добавляем ключ
       },
       { status: 500 }
     );

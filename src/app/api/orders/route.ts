@@ -73,7 +73,7 @@ export async function POST(req: Request) {
     });
 
     // ✉️ Отправляем письма (если не отключено)
-    if (!process.env.DISABLE_EMAILS) {
+    if (!process.env["DISABLE_EMAILS"]) {
       // письмо клиенту
       if (order.user?.email) {
         await sendEmail(
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
 
       // письмо админу
       await sendEmail(
-        process.env.EMAIL_USER!,
+        process.env["EMAIL_USER"]!,
         `Новый заказ #${order.id}`,
         adminOrderTemplate(order, "NEW")
       );

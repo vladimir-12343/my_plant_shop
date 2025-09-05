@@ -41,8 +41,8 @@ export async function PATCH(
     const data: Prisma.ProductUpdateInput = {};
 
     // name + slug
-    if (typeof body.name === "string") {
-      const name = body.name.trim();
+    if (typeof body["name"] === "string") {
+      const name = body["name"].trim();
       if (name) {
         data.name = name;
         data.slug = slugify(name);
@@ -51,41 +51,41 @@ export async function PATCH(
 
     // price
     {
-      const n = toNumber(body.price);
+      const n = toNumber(body["price"]);
       if (n !== undefined) data.price = n;
     }
 
     // compareAtPrice
-    if (body.compareAtPrice === null) {
+    if (body["compareAtPrice"] === null) {
       data.compareAtPrice = null;
     } else {
-      const n = toNumber(body.compareAtPrice);
+      const n = toNumber(body["compareAtPrice"]);
       if (n !== undefined) data.compareAtPrice = n;
     }
 
     // stock
     {
-      const n = toNumber(body.stock);
+      const n = toNumber(body["stock"]);
       if (n !== undefined) data.stock = n;
     }
 
     // sku
-    if (typeof body.sku === "string") {
-      const v = body.sku.trim();
+    if (typeof body["sku"] === "string") {
+      const v = body["sku"].trim();
       data.sku = v || null;
     }
 
     // description
-    if (typeof body.description === "string") {
-      const v = body.description.trim();
+    if (typeof body["description"] === "string") {
+      const v = body["description"].trim();
       data.description = v || null;
     }
 
     // discount
-    if (body.discount === null) {
+    if (body["discount"] === null) {
       data.discount = null;
     } else {
-      const n = toNumber(body.discount);
+      const n = toNumber(body["discount"]);
       if (n !== undefined) {
         const clamped = Math.max(0, Math.min(100, Math.round(n)));
         data.discount = clamped;
@@ -93,8 +93,8 @@ export async function PATCH(
     }
 
     // images relation
-    if (Array.isArray(body.images)) {
-      const urls = body.images
+    if (Array.isArray(body["images"])) {
+      const urls = body["images"]
         .map((i) => (typeof i === "string" ? i.trim() : ""))
         .filter((u) => u.length > 0);
 
@@ -110,23 +110,23 @@ export async function PATCH(
         data.images = { deleteMany: {} };
       }
 
-      if (typeof body.coverImage !== "string") {
+      if (typeof body["coverImage"] !== "string") {
         data.coverImage = unique[0] ?? null;
       }
     }
 
     // coverImage
-    if (typeof body.coverImage === "string") {
-      const c = body.coverImage.trim();
+    if (typeof body["coverImage"] === "string") {
+      const c = body["coverImage"].trim();
       data.coverImage = c || null;
     }
 
     // category
     if (
-      typeof body.categoryId === "number" ||
-      (typeof body.categoryId === "string" && body.categoryId !== "")
+      typeof body["categoryId"] === "number" ||
+      (typeof body["categoryId"] === "string" && body["categoryId"] !== "")
     ) {
-      const cid = toNumber(body.categoryId);
+      const cid = toNumber(body["categoryId"]);
       if (cid !== undefined) data.category = { connect: { id: cid } };
     }
 

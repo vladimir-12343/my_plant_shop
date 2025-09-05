@@ -13,6 +13,7 @@
     "-": "^0.0.1",
     "@auth/prisma-adapter": "^2.10.0",
     "@hello-pangea/dnd": "^18.0.1",
+    "@simplewebauthn/server": "^9.0.3",
     "bcrypt": "^6.0.0",
     "framer-motion": "^12.23.12",
     "next": "15.3.4",

@@ -73,7 +73,7 @@ export async function PATCH(
     });
 
     // Письмо клиенту (можно отключить через DISABLE_EMAILS=1/true)
-    const emailsDisabled = ["1", "true", "yes"].includes(String(process.env.DISABLE_EMAILS ?? "").toLowerCase());
+    const emailsDisabled = ["1", "true", "yes"].includes(String(process.env["DISABLE_EMAILS"] ?? "").toLowerCase());
     if (!emailsDisabled && updated.user?.email) {
       await sendEmail(
         updated.user.email,

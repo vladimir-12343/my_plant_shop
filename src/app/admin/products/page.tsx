@@ -17,7 +17,7 @@ export default async function Page({
   const lowOnly = sp.low === "1"
 
   // Порог берём из .env (по умолчанию 5)
-  const threshold = Number(process.env.LOW_STOCK_THRESHOLD ?? 5)
+  const threshold = Number(process.env["LOW_STOCK_THRESHOLD"] ?? 5)
 
   // Используем официальный тип Prisma.ProductWhereInput
   const where: Prisma.ProductWhereInput = {

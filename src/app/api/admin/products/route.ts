@@ -35,7 +35,7 @@ type ApiResponse = {
   data?: { products: ProductResponse[]; categories: CategoryResponse[] };
   timestamp?: string;
   error?: string;
-  details?: string;
+  details?: string; // опционально; если не хотим передавать — просто не указываем ключ
 };
 
 // GET /api/admin/products
@@ -83,10 +83,9 @@ export async function GET(request: Request) {
       timestamp: new Date().toISOString(),
     };
 
-    return new NextResponse(JSON.stringify(response), {
+    return NextResponse.json(response, {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
         "X-Total-Count": String(totalProducts),
         "X-Page": String(page),
         "X-Per-Page": String(limit),
@@ -96,15 +95,19 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("API Error:", error);
 
+    const isDev = process.env.NODE_ENV === "development";
+    const details =
+      isDev && error instanceof Error
+        ? error.message
+        : isDev
+        ? "Неизвестная ошибка"
+        : undefined;
+
+    // ⬇️ Добавляем details ТОЛЬКО если он есть (иначе не включаем ключ)
     const response: ApiResponse = {
       success: false,
       error: "Ошибка загрузки данных",
-      details:
-        process.env.NODE_ENV === "development"
-          ? error instanceof Error
-            ? error.message
-            : "Неизвестная ошибка"
-          : undefined,
+      ...(details !== undefined ? { details } : {}),
       timestamp: new Date().toISOString(),
     };
 
@@ -135,7 +138,10 @@ export async function POST(req: Request) {
     const images: string[] = Array.isArray(body.images) ? body.images : [];
     const discount = body.discount ?? 0;
     const isFeatured = body.isFeatured ?? false;
-    const categoryId = Number(body.categoryId);
+
+    const categoryIdParsed = Number(body.categoryId);
+    const hasCategory = Number.isFinite(categoryIdParsed);
+
     const coverImage: string | null =
       body.coverImage ?? (images.length ? images[0] : null);
 
@@ -151,7 +157,7 @@ export async function POST(req: Request) {
         coverImage,
         discount,
         isFeatured,
-        category: { connect: { id: categoryId } }, // ✅ связь через relation
+        ...(hasCategory ? { category: { connect: { id: categoryIdParsed } } } : {}),
         images: {
           create: images.map((url: string, index: number) => ({
             url,
@@ -168,12 +174,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, product });
   } catch (error) {
     console.error("Create product error:", error);
+
+    const isDev = process.env.NODE_ENV === "development";
     return NextResponse.json(
       {
         success: false,
         error: "Не удалось создать товар",
-        details:
-          process.env.NODE_ENV === "development" ? String(error) : undefined,
+        ...(isDev ? { details: String(error) } : {}),
       },
       { status: 500 }
     );

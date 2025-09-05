@@ -54,7 +54,7 @@ export function orderStatusTemplate(orderId: number, status: string) {
           </div>
 
           <div style="text-align: center; margin: 20px 0;">
-            <a href="${process.env.NEXT_PUBLIC_APP_URL}/account/orders/${orderId}"
+            <a href="${process.env["NEXT_PUBLIC_APP_URL"]}/account/orders/${orderId}"
                style="background: #c7a17a; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: bold;">
               Посмотреть заказ
             </a>
@@ -130,7 +130,7 @@ export function adminOrderTemplate(order: any, status: string) {
           <p><b>Итого:</b> ${(order.total / 100).toFixed(2)} ₽</p>
 
           <div style="text-align: center; margin: 20px 0;">
-            <a href="${process.env.NEXT_PUBLIC_APP_URL}/admin/orders/${order.id}"
+            <a href="${process.env["NEXT_PUBLIC_APP_URL"]}/admin/orders/${order.id}"
                style="background: #b91c1c; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: bold;">
               Открыть заказ
             </a>

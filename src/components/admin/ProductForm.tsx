@@ -6,17 +6,17 @@ import Image from "next/image";
 
 type Cat = { id: number; name: string };
 
-type Initial = {
+export type Initial = {
   id: number;
   name: string;
   description?: string;
-  price: number; // в копейках
-  compareAtPrice?: number;
+  price: number;           // в копейках
+  compareAtPrice?: number; // в копейках
   stock: number;
   sku?: string;
-  categoryId: number;
+  categoryId?: number;
   images: string[];
-  discount?: number;
+  discount?: number;       // 0..100
 };
 
 type FormState = {
@@ -26,7 +26,7 @@ type FormState = {
   compareAtPrice?: string;
   stock?: number;
   sku?: string;
-  categoryId?: number | string;
+  categoryId?: number | string; // ⚠️ держим как number | string, без undefined
   newCategory?: string;
   images: string[];
   discount?: number;
@@ -37,10 +37,21 @@ function centsToStr(cents?: number) {
   return cents == null ? "" : (cents / 100).toFixed(2);
 }
 
+function normalizeMoneyInput(v: string) {
+  return v.replace(/[^\d.,]/g, "").replace(",", ".");
+}
+
+function toCents(v?: string) {
+  if (!v) return undefined;
+  const num = Number.parseFloat(normalizeMoneyInput(v));
+  if (Number.isNaN(num)) return undefined;
+  return Math.round(num * 100);
+}
+
 interface ProductFormProps {
   categories: Cat[];
   initial?: Initial;
-  onCancel?: () => void; // ✅ для сброса редактирования
+  onCancel?: () => void;
 }
 
 export function ProductForm({ categories, initial, onCancel }: ProductFormProps) {
@@ -51,7 +62,7 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
 
   const [formState, setFormState] = useState<FormState>({ images: [] });
 
-  // подставляем initial при редактировании
+  // Заполнить из initial при редактировании
   useEffect(() => {
     if (initial && !formState._loadedFromInitial) {
       setFormState({
@@ -61,7 +72,7 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
         compareAtPrice: centsToStr(initial.compareAtPrice),
         stock: initial.stock ?? 0,
         sku: initial.sku ?? "",
-        categoryId: initial.categoryId,
+        categoryId: initial.categoryId ?? "",   // ✅ НЕ undefined, а ""
         images: initial.images || [],
         discount: initial.discount ?? 0,
         _loadedFromInitial: true,
@@ -72,14 +83,57 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
-    const { name, value } = e.target;
-    setFormState((prev) => ({
-      ...prev,
-      [name]:
-        name === "discount" || name === "stock"
-          ? (value === "" ? undefined : Number(value))
-          : value,
-    }));
+    const { name } = e.target;
+    let { value } = e.target;
+
+    if (name === "price") {
+      const normalized = normalizeMoneyInput(value);
+      setFormState((prev) => {
+        const next: FormState = { ...prev, price: normalized };
+        const newPrice = Number.parseFloat(normalized || "0");
+        const oldStr = prev.compareAtPrice ? normalizeMoneyInput(prev.compareAtPrice) : "";
+        const oldNum = oldStr ? Number.parseFloat(oldStr) : NaN;
+        if (!Number.isNaN(oldNum) && oldNum <= (Number.isNaN(newPrice) ? 0 : newPrice)) {
+          next.compareAtPrice = "";
+        }
+        return next;
+      });
+      return;
+    }
+
+    if (name === "compareAtPrice") {
+      value = normalizeMoneyInput(value);
+      setFormState((prev) => ({ ...prev, compareAtPrice: value }));
+      return;
+    }
+
+    if (name === "stock" || name === "discount") {
+      setFormState((prev) => ({
+        ...prev,
+        [name]: value === "" ? undefined : Number(value),
+      }));
+      return;
+    }
+
+    if (name === "categoryId") {
+      setFormState((prev) => ({
+        ...prev,
+        categoryId: value === "" ? "" : Number(value), // ✅ пустое значение — "", не undefined
+      }));
+      return;
+    }
+
+    setFormState((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handlePriceBlur = (field: "price" | "compareAtPrice") => {
+    setFormState((prev) => {
+      const raw = prev[field];
+      if (!raw) return prev;
+      const num = Number.parseFloat(normalizeMoneyInput(raw));
+      if (Number.isNaN(num)) return { ...prev, [field]: "" };
+      return { ...prev, [field]: num.toFixed(2) };
+    });
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -118,34 +172,36 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (pending) return;
     setErr(null);
     setOk(null);
 
     const fd = new FormData(e.currentTarget as HTMLFormElement);
+
     const name = String(fd.get("name") || "").trim();
     if (!name) {
       setErr("Название обязательно для заполнения");
       return;
     }
 
-    const priceStr = String(fd.get("price") || "0").replace(",", ".").trim();
-    const priceNum = Number.parseFloat(priceStr);
-    const price = Math.round((Number.isNaN(priceNum) ? 0 : priceNum) * 100);
-    if (price <= 0) {
+    const priceCents = toCents(String(fd.get("price") || ""));
+    if (!priceCents || priceCents <= 0) {
       setErr("Цена должна быть больше 0");
       return;
     }
 
-    const compareAtStr = String(fd.get("compareAtPrice") || "").replace(",", ".").trim();
-    const compareAtParsed = compareAtStr ? Number.parseFloat(compareAtStr) : undefined;
-    const compareAtPrice =
-      compareAtParsed != null && !Number.isNaN(compareAtParsed)
-        ? Math.round(compareAtParsed * 100)
-        : undefined;
+    const compareAtCents = toCents(String(fd.get("compareAtPrice") || ""));
+    if (compareAtCents != null && compareAtCents <= priceCents) {
+      // авто-очистка — просто не отправим поле compareAtPrice
+    }
 
     const stock = Number(fd.get("stock") || 0);
     const sku = String(fd.get("sku") || "").trim() || undefined;
-    let categoryId = Number(fd.get("categoryId"));
+
+    // value из select'а может быть "" → пусть станет NaN, мы это обработаем
+    const rawCat = String(fd.get("categoryId") ?? "");
+    let categoryId = rawCat === "" ? NaN : Number(rawCat);
+
     const newCategory = String(fd.get("newCategory") || "").trim();
     const description = String(fd.get("description") || "");
 
@@ -163,7 +219,7 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
 
     start(async () => {
       try {
-        if ((!categoryId || Number.isNaN(categoryId)) && newCategory) {
+        if ((Number.isNaN(categoryId) || !categoryId) && newCategory) {
           const catRes = await fetch("/api/admin/categories", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -176,11 +232,14 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
 
         const body = {
           name,
-          price,
-          compareAtPrice,
+          price: priceCents,
+          compareAtPrice:
+            compareAtCents != null && compareAtCents > priceCents
+              ? compareAtCents
+              : undefined,
           stock,
           sku,
-          categoryId: categoryId || undefined,
+          categoryId: Number.isNaN(categoryId) ? undefined : categoryId,
           description,
           images: formState.images,
           discount,
@@ -205,12 +264,9 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
 
         setOk("Сохранено ✅");
         resetForm();
-
-        // если это редактирование → выходим из режима редактирования
         if (initial) {
           onCancel?.();
         } else {
-        // если это создание → сбросить HTML-форму
           (e.currentTarget as HTMLFormElement | null)?.reset();
         }
 
@@ -240,12 +296,13 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
         className="w-full rounded-xl border px-3 py-2"
       />
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <input
           name="price"
           inputMode="decimal"
           value={formState.price || ""}
           onChange={handleChange}
+          onBlur={() => handlePriceBlur("price")}
           placeholder="Цена, напр. 1999.00"
           className="rounded-xl border px-3 py-2"
         />
@@ -254,6 +311,7 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
           inputMode="decimal"
           value={formState.compareAtPrice || ""}
           onChange={handleChange}
+          onBlur={() => handlePriceBlur("compareAtPrice")}
           placeholder="Старая цена"
           className="rounded-xl border px-3 py-2"
         />
@@ -268,7 +326,7 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <input
           type="number"
           name="discount"
@@ -282,7 +340,7 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
 
         <select
           name="categoryId"
-          value={formState.categoryId || ""}
+          value={formState.categoryId || ""}  // "" когда пусто
           onChange={handleChange}
           className="rounded-xl border px-3 py-2"
         >
@@ -348,6 +406,7 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
 
       <div className="flex gap-3">
         <button
+          type="submit"
           disabled={pending}
           className="flex-1 rounded-xl border px-3 py-2 hover:bg-gray-50 disabled:opacity-50"
         >

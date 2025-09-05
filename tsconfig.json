@@ -16,7 +16,7 @@
 
     /* Проверки */
     "strict": true,                        // включает все строгие проверки
-    "skipLibCheck": false,                 // проверять типы в node_modules
+    "skipLibCheck": true,                  // ✅ НЕ проверять типы в node_modules
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "noUncheckedIndexedAccess": true,      // индексирование даёт |undefined
@@ -26,9 +26,7 @@
     "strictFunctionTypes": true,
 
     /* Плагины */
-    "plugins": [
-      { "name": "next" }
-    ],
+    "plugins": [{ "name": "next" }],
 
     /* Алиасы */
     "paths": {
@@ -42,8 +40,5 @@
     "tailwind.config.js",
     ".next/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    ".next"
-  ]
+  "exclude": ["node_modules", ".next"]
 }

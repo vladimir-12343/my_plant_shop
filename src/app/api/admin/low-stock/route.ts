@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
 function getThreshold() {
-  const t = Number(process.env.LOW_STOCK_THRESHOLD ?? 5);
+  const t = Number(process.env["LOW_STOCK_THRESHOLD"] ?? 5);
   return Number.isFinite(t) ? t : 5;
 }
 
