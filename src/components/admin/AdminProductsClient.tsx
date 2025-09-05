@@ -15,6 +15,23 @@ type AdminProductsClientProps = {
   lowStockThreshold?: number;
 };
 
+// --- helpers ---
+const isValidSrc = (s?: unknown): s is string =>
+  typeof s === "string" && s.trim() !== "";
+
+const sanitizeImages = (arr?: unknown): string[] =>
+  Array.isArray(arr) ? (arr as unknown[]).filter(isValidSrc) : [];
+
+const sanitizeProduct = (p: any) => {
+  const images = sanitizeImages(p?.images);
+  const coverImage = isValidSrc(p?.coverImage) ? p.coverImage : images[0] ?? null;
+  return {
+    ...p,
+    images,
+    coverImage, // ← никогда не ""
+  };
+};
+
 export default function AdminProductsClient({
   products,
   categories,
@@ -33,24 +50,26 @@ export default function AdminProductsClient({
     [categories]
   );
 
+  // сразу санитизируем товары (убираем пустые src)
   const productsSafe = useMemo(
-    () => (Array.isArray(products) ? products : []),
+    () => (Array.isArray(products) ? products.map(sanitizeProduct) : []),
     [products]
   );
 
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
 
-  // Готовим initial для формы редактирования и убираем undefined-поля
+  // initial для формы (тоже с очищенными images)
   const initialForForm: ProductInitial | undefined = useMemo(() => {
     if (!editingProduct) return undefined;
 
+    const images = sanitizeImages(editingProduct.images);
     const base: ProductInitial = {
       id: editingProduct.id,
       name: editingProduct.name,
       description: editingProduct.description ?? "",
       price: editingProduct.price,
       stock: editingProduct.stock ?? 0,
-      images: Array.isArray(editingProduct.images) ? editingProduct.images : [],
+      images, // ← только валидные
     };
 
     return {
@@ -106,7 +125,7 @@ export default function AdminProductsClient({
         <ProductForm
           key={editingProduct ? `edit-${editingProduct.id}` : "new"}
           categories={categoriesSafe.map((c) => ({ id: c.id, name: c.name }))}
-          {...(initialForForm ? { initial: initialForForm } : {})} 
+          {...(initialForForm ? { initial: initialForForm } : {})}
           onCancel={() => setEditingProduct(null)}
         />
       </section>
@@ -185,7 +204,8 @@ export default function AdminProductsClient({
           <p className="text-gray-500">Товары не найдены</p>
         ) : (
           <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProducts.map((p) => {
+            {filteredProducts.map((raw) => {
+              const p = sanitizeProduct(raw); // ← ещё раз на всякий
               const stock: number = Number(p?.stock ?? 0);
               const stockColor =
                 stock <= 2
@@ -203,7 +223,7 @@ export default function AdminProductsClient({
               return (
                 <li key={p.id} className="group">
                   <ProductCard
-                    product={p}
+                    product={p}           // ← с чистыми images/coverImage
                     mode="admin"
                     onEdit={() => setEditingProduct(p)}
                   />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
@@ -26,21 +26,26 @@ type FormState = {
   compareAtPrice?: string;
   stock?: number;
   sku?: string;
-  categoryId?: number | string; // ⚠️ держим как number | string, без undefined
+  categoryId?: number | string;
   newCategory?: string;
   images: string[];
   discount?: number;
   _loadedFromInitial?: boolean;
 };
 
+// ---------- helpers ----------
+const isValidSrc = (s?: unknown): s is string =>
+  typeof s === "string" && s.trim() !== "";
+
+const sanitizeImages = (arr?: unknown): string[] =>
+  Array.isArray(arr) ? (arr as unknown[]).filter(isValidSrc) : [];
+
 function centsToStr(cents?: number) {
   return cents == null ? "" : (cents / 100).toFixed(2);
 }
-
 function normalizeMoneyInput(v: string) {
   return v.replace(/[^\d.,]/g, "").replace(",", ".");
 }
-
 function toCents(v?: string) {
   if (!v) return undefined;
   const num = Number.parseFloat(normalizeMoneyInput(v));
@@ -62,7 +67,7 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
 
   const [formState, setFormState] = useState<FormState>({ images: [] });
 
-  // Заполнить из initial при редактировании
+  // Заполнить из initial при редактировании (и сразу отфильтровать пустые src)
   useEffect(() => {
     if (initial && !formState._loadedFromInitial) {
       setFormState({
@@ -72,8 +77,8 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
         compareAtPrice: centsToStr(initial.compareAtPrice),
         stock: initial.stock ?? 0,
         sku: initial.sku ?? "",
-        categoryId: initial.categoryId ?? "",   // ✅ НЕ undefined, а ""
-        images: initial.images || [],
+        categoryId: initial.categoryId ?? "",
+        images: sanitizeImages(initial.images),
         discount: initial.discount ?? 0,
         _loadedFromInitial: true,
       });
@@ -118,7 +123,7 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
     if (name === "categoryId") {
       setFormState((prev) => ({
         ...prev,
-        categoryId: value === "" ? "" : Number(value), // ✅ пустое значение — "", не undefined
+        categoryId: value === "" ? "" : Number(value),
       }));
       return;
     }
@@ -150,7 +155,7 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
 
       setFormState((prev) => ({
         ...prev,
-        images: [...(prev.images || []), ...data.urls],
+        images: [...(prev.images || []), ...sanitizeImages(data.urls)],
       }));
     } catch {
       setErr("Не удалось загрузить изображение");
@@ -191,21 +196,19 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
     }
 
     const compareAtCents = toCents(String(fd.get("compareAtPrice") || ""));
-    if (compareAtCents != null && compareAtCents <= priceCents) {
-      // авто-очистка — просто не отправим поле compareAtPrice
-    }
+    // if compareAt <= price — просто не шлём это поле
 
     const stock = Number(fd.get("stock") || 0);
     const sku = String(fd.get("sku") || "").trim() || undefined;
 
-    // value из select'а может быть "" → пусть станет NaN, мы это обработаем
     const rawCat = String(fd.get("categoryId") ?? "");
     let categoryId = rawCat === "" ? NaN : Number(rawCat);
 
     const newCategory = String(fd.get("newCategory") || "").trim();
     const description = String(fd.get("description") || "");
 
-    if (!formState.images || formState.images.length === 0) {
+    const safeImages = sanitizeImages(formState.images);
+    if (safeImages.length === 0) {
       setErr("Нужно загрузить хотя бы одно изображение");
       return;
     }
@@ -241,9 +244,9 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
           sku,
           categoryId: Number.isNaN(categoryId) ? undefined : categoryId,
           description,
-          images: formState.images,
+          images: safeImages,                      // ← только валидные
           discount,
-          coverImage: formState.images[0] || null,
+          coverImage: safeImages[0] || null,       // ← не ""
         };
 
         const url = initial
@@ -277,6 +280,9 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
       }
     });
   };
+
+  // превью тоже только из валидных ссылок
+  const previewImages = useMemo(() => sanitizeImages(formState.images), [formState.images]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
@@ -379,10 +385,11 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
           className="w-full rounded-xl border px-3 py-2"
         />
 
-        {formState.images.length > 0 && (
+        {previewImages.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-2">
-            {formState.images.map((url, i) => (
+            {previewImages.map((url, i) => (
               <div key={url + i} className="relative">
+                {/* сюда никогда не попадёт "" */}
                 <Image
                   src={url}
                   alt={`image-${i}`}
