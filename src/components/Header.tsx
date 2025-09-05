@@ -7,6 +7,8 @@ import { useEffect, useState, useRef, forwardRef } from "react"
 import MegaMenu from "@/components/MegaMenu"
 import { useCart } from "@/components/CartContext"
 
+type HeaderProps = React.HTMLAttributes<HTMLElement>
+
 const SHOP_SECTIONS = [
   {
     title: "Категории",
@@ -47,15 +49,19 @@ const SHOP_SECTIONS = [
   },
 ]
 
-const Header = forwardRef<HTMLElement>((props, ref) => {
+const Header = forwardRef<HTMLElement, HeaderProps>((_props, ref) => {
   const pathname = usePathname()
-  const [open, setOpen] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+
   const [auth, setAuth] = useState<{ admin: boolean; userEmail: string | null }>({
     admin: false,
     userEmail: null,
   })
-  const menuRef = useRef<HTMLDivElement>(null)
+
+  // ДВА отдельных ref — для десктопного и мобильного меню аккаунта
+  const accountMenuRefDesktop = useRef<HTMLDivElement>(null)
+  const accountMenuRefMobile = useRef<HTMLDivElement>(null)
 
   const { cart, setCartOpen } = useCart()
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
@@ -74,10 +80,19 @@ const Header = forwardRef<HTMLElement>((props, ref) => {
     }
   }, [pathname])
 
+  // Закрытие дропдауна по клику вне ОБОИХ контейнеров
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false)
+      const t = e.target as Node
+      const inDesktop =
+        accountMenuRefDesktop.current &&
+        accountMenuRefDesktop.current.contains(t)
+      const inMobile =
+        accountMenuRefMobile.current &&
+        accountMenuRefMobile.current.contains(t)
+
+      if (!inDesktop && !inMobile) {
+        setAccountMenuOpen(false)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
@@ -119,7 +134,7 @@ const Header = forwardRef<HTMLElement>((props, ref) => {
   return (
     <header ref={ref} className="fixed top-0 left-0 w-full z-50 bg-white shadow">
       <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12">
-        {/* desktop */}
+        {/* DESKTOP */}
         <div className="hidden md:flex items-center justify-between py-5 lg:py-0">
           {/* Лого */}
           <div className="flex-shrink-0">
@@ -170,10 +185,10 @@ const Header = forwardRef<HTMLElement>((props, ref) => {
 
           {/* Иконки справа */}
           <div className="flex items-center gap-6 text-gray-700">
-            {/* Аккаунт */}
-            <div className="relative" ref={menuRef}>
+            {/* Аккаунт (desktop) */}
+            <div className="relative" ref={accountMenuRefDesktop}>
               <button
-                onClick={() => setMenuOpen((v) => !v)}
+                onClick={() => setAccountMenuOpen(v => !v)}
                 className="hover:text-gray-900 relative top-1"
                 aria-label="Аккаунт"
               >
@@ -182,7 +197,7 @@ const Header = forwardRef<HTMLElement>((props, ref) => {
                   <circle cx="12" cy="7" r="4" strokeWidth="1.8" />
                 </svg>
               </button>
-              {menuOpen && (
+              {accountMenuOpen && (
                 <div className="absolute right-0 mt-2 w-48 rounded-xl border bg-white shadow-lg py-2 z-50">
                   {renderAccountMenu()}
                 </div>
@@ -219,7 +234,7 @@ const Header = forwardRef<HTMLElement>((props, ref) => {
           </div>
         </div>
 
-        {/* mobile */}
+        {/* MOBILE */}
         <div className="flex md:hidden items-center justify-between py-4">
           {/* Лого */}
           <Link href="/" className="flex items-center gap-3">
@@ -235,10 +250,10 @@ const Header = forwardRef<HTMLElement>((props, ref) => {
 
           {/* Правая часть */}
           <div className="flex items-center gap-4">
-            {/* Аккаунт (mobile с меню) */}
-            <div className="relative" ref={menuRef}>
+            {/* Аккаунт (mobile) */}
+            <div className="relative" ref={accountMenuRefMobile}>
               <button
-                onClick={() => setMenuOpen((v) => !v)}
+                onClick={() => setAccountMenuOpen(v => !v)}
                 aria-label="Аккаунт"
                 className="hover:text-gray-900"
               >
@@ -247,7 +262,7 @@ const Header = forwardRef<HTMLElement>((props, ref) => {
                   <circle cx="12" cy="7" r="4" strokeWidth="1.8" />
                 </svg>
               </button>
-              {menuOpen && (
+              {accountMenuOpen && (
                 <div className="absolute right-0 mt-2 w-40 rounded-xl border bg-white shadow-lg py-2 z-50">
                   {renderAccountMenu()}
                 </div>
@@ -280,11 +295,11 @@ const Header = forwardRef<HTMLElement>((props, ref) => {
 
             {/* Бургер */}
             <button
-              onClick={() => setOpen(!open)}
+              onClick={() => setMobileOpen(v => !v)}
               className="text-gray-700 hover:text-gray-900"
               aria-label="Меню"
             >
-              {open ? (
+              {mobileOpen ? (
                 <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -298,7 +313,7 @@ const Header = forwardRef<HTMLElement>((props, ref) => {
         </div>
 
         {/* мобильное меню */}
-        {open && (
+        {mobileOpen && (
           <div className="md:hidden absolute top-full left-0 w-full bg-white shadow-lg z-50">
             <ul className="flex flex-col p-4 space-y-4">
               <li><Link href="/" className="uppercase text-sm hover:text-gray-900">Главная</Link></li>
