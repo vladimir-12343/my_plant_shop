@@ -3,15 +3,17 @@ import { notFound } from "next/navigation"
 import ProductDetail from "@/components/ProductDetail"
 
 interface PageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export default async function ProductPage({ params }: PageProps) {
-  const id = Number(params.id)
-  if (isNaN(id)) return notFound()
+  // 👇 теперь ждём params
+  const { id } = await params
+  const productId = Number(id)
+  if (isNaN(productId)) return notFound()
 
   const dbProduct = await prisma.product.findUnique({
-    where: { id },
+    where: { id: productId },
     include: {
       category: true,
       images: true,
@@ -20,10 +22,10 @@ export default async function ProductPage({ params }: PageProps) {
 
   if (!dbProduct) return notFound()
 
-  // 🎯 Нормализуем для ProductDetail
   const product = {
     ...dbProduct,
-    images: dbProduct.images.map((img) => img.url), // ✅ только URL
+    images: dbProduct.images.map((img) => img.url).filter(Boolean),
+    coverImage: dbProduct.coverImage || dbProduct.images[0]?.url || null,
   }
 
   return <ProductDetail product={product} />

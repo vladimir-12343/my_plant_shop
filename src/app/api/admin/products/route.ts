@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
+import { NextResponse } from "next/server"
+import prisma from "@/lib/prisma"
+import { invalidateProductsCache } from "@/lib/cache"
 
 // 🔧 генерация slug из названия
 function slugify(str: string) {
@@ -11,39 +11,39 @@ function slugify(str: string) {
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9а-яё\-]/g, "")
     .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/^-|-$/g, "")
 }
 
 // Типы для ответа
 type ProductResponse = {
-  id: number;
-  name: string;
-  price: number;
-  coverImage: string;
-  discount: number;
-  category: { id: number; name: string };
-};
+  id: number
+  name: string
+  price: number
+  coverImage: string
+  discount: number
+  category: { id: number; name: string }
+}
 
 type CategoryResponse = {
-  id: number;
-  name: string;
-  products: Array<{ id: number }>;
-};
+  id: number
+  name: string
+  products: Array<{ id: number }>
+}
 
 type ApiResponse = {
-  success: boolean;
-  data?: { products: ProductResponse[]; categories: CategoryResponse[] };
-  timestamp?: string;
-  error?: string;
-  details?: string; // опционально; если не хотим передавать — просто не указываем ключ
-};
+  success: boolean
+  data?: { products: ProductResponse[]; categories: CategoryResponse[] }
+  timestamp?: string
+  error?: string
+  details?: string
+}
 
-// GET /api/admin/products
+// ---------- GET /api/admin/products ----------
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const limit = Number(searchParams.get("limit")) || 12;
-  const page = Number(searchParams.get("page")) || 1;
-  const skip = (page - 1) * limit;
+  const { searchParams } = new URL(request.url)
+  const limit = Number(searchParams.get("limit")) || 12
+  const page = Number(searchParams.get("page")) || 1
+  const skip = (page - 1) * limit
 
   try {
     const [products, categories, totalProducts] = await Promise.all([
@@ -66,7 +66,7 @@ export async function GET(request: Request) {
         orderBy: { name: "asc" },
       }),
       prisma.product.count({ where: { isFeatured: true } }),
-    ]);
+    ])
 
     const formattedProducts: ProductResponse[] = products.map((p) => ({
       id: p.id,
@@ -75,13 +75,13 @@ export async function GET(request: Request) {
       coverImage: p.coverImage || "/images/placeholder-product.jpg",
       discount: p.discount ?? 0,
       category: { id: p.category.id, name: p.category.name },
-    }));
+    }))
 
     const response: ApiResponse = {
       success: true,
       data: { products: formattedProducts, categories },
       timestamp: new Date().toISOString(),
-    };
+    }
 
     return NextResponse.json(response, {
       status: 200,
@@ -91,59 +91,58 @@ export async function GET(request: Request) {
         "X-Per-Page": String(limit),
         "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=300",
       },
-    });
+    })
   } catch (error) {
-    console.error("API Error:", error);
+    console.error("API Error:", error)
 
-    const isDev = process.env.NODE_ENV === "development";
+    const isDev = process.env.NODE_ENV === "development"
     const details =
       isDev && error instanceof Error
         ? error.message
         : isDev
         ? "Неизвестная ошибка"
-        : undefined;
+        : undefined
 
-    // ⬇️ Добавляем details ТОЛЬКО если он есть (иначе не включаем ключ)
     const response: ApiResponse = {
       success: false,
       error: "Ошибка загрузки данных",
       ...(details !== undefined ? { details } : {}),
       timestamp: new Date().toISOString(),
-    };
+    }
 
-    return NextResponse.json(response, { status: 500 });
+    return NextResponse.json(response, { status: 500 })
   }
 }
 
-// POST /api/admin/products
+// ---------- POST /api/admin/products ----------
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const body = await req.json()
 
-    const name = String(body.name || "").trim();
+    const name = String(body.name || "").trim()
     if (!name) {
       return NextResponse.json(
         { success: false, error: "Название товара обязательно" },
         { status: 400 }
-      );
+      )
     }
 
     // приведение типов
-    const price = Number(body.price);
+    const price = Number(body.price)
     const compareAtPrice =
-      body.compareAtPrice != null ? Number(body.compareAtPrice) : null;
-    const stock = body.stock ?? 0;
-    const sku = body.sku ? String(body.sku) : null;
-    const description = body.description ? String(body.description) : null;
-    const images: string[] = Array.isArray(body.images) ? body.images : [];
-    const discount = body.discount ?? 0;
-    const isFeatured = body.isFeatured ?? false;
+      body.compareAtPrice != null ? Number(body.compareAtPrice) : null
+    const stock = body.stock ?? 0
+    const sku = body.sku ? String(body.sku) : null
+    const description = body.description ? String(body.description) : null
+    const images: string[] = Array.isArray(body.images) ? body.images : []
+    const discount = body.discount ?? 0
+    const isFeatured = body.isFeatured ?? false
 
-    const categoryIdParsed = Number(body.categoryId);
-    const hasCategory = Number.isFinite(categoryIdParsed);
+    const categoryIdParsed = Number(body.categoryId)
+    const hasCategory = Number.isFinite(categoryIdParsed)
 
     const coverImage: string | null =
-      body.coverImage ?? (images.length ? images[0] : null);
+      body.coverImage ?? (images.length ? images[0] : null)
 
     const product = await prisma.product.create({
       data: {
@@ -165,17 +164,16 @@ export async function POST(req: Request) {
           })),
         },
       },
-    });
+    })
 
-    // инвалидация страниц
-    revalidatePath("/admin/products");
-    revalidatePath("/");
+    // ✅ инвалидация кеша
+    invalidateProductsCache(product.id)
 
-    return NextResponse.json({ success: true, product });
+    return NextResponse.json({ success: true, product })
   } catch (error) {
-    console.error("Create product error:", error);
+    console.error("Create product error:", error)
 
-    const isDev = process.env.NODE_ENV === "development";
+    const isDev = process.env.NODE_ENV === "development"
     return NextResponse.json(
       {
         success: false,
@@ -183,6 +181,6 @@ export async function POST(req: Request) {
         ...(isDev ? { details: String(error) } : {}),
       },
       { status: 500 }
-    );
+    )
   }
 }

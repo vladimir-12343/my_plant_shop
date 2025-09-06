@@ -1,6 +1,8 @@
 import prisma from "@/lib/prisma"
 import ProductCard, { ProductCardProduct } from "@/components/ProductCard"
 
+export const dynamic = "force-dynamic"   // ✅ всегда свежие данные
+
 export default async function AllPlantsPage() {
   const products = await prisma.product.findMany({
     orderBy: { createdAt: "desc" },
