@@ -4,6 +4,9 @@ import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
+export const dynamic = "force-dynamic";
+
+
 export default function LoginPage() {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
