@@ -25,24 +25,38 @@ const authOptions: NextAuthOptions = {
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) return null;
 
-        // id должен быть строкой
-        return { id: String(user.id), email: user.email };
+        // 👇 возвращаем id (string), email и роль
+        return {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        };
       },
     }),
   ],
   session: { strategy: "jwt" },
-  // добавляем secret только если он есть, иначе ключ не попадает в объект
   ...(process.env.NEXTAUTH_SECRET ? { secret: process.env.NEXTAUTH_SECRET } : {}),
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token["id"] = (user as any).id; // прокинем id в токен
+        token["id"] = (user as any).id;     // string
+        token["role"] = (user as any).role; // string ("USER" | "ADMIN")
+      } else if (token?.["id"]) {
+        // обновляем роль из базы на всякий случай
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token["id"] as string },
+        });
+        if (dbUser) token["role"] = dbUser.role;
       }
       return token;
     },
     async session({ session, token }) {
       if (token?.["id"]) {
-        (session.user as any) = { ...(session.user || {}), id: token["id"] };
+        (session.user as any) = {
+          ...(session.user || {}),
+          id: token["id"],       // string
+          role: token["role"],   // "USER" | "ADMIN"
+        };
       }
       return session;
     },

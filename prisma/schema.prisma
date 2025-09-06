@@ -64,6 +64,7 @@ model User {
   password  String
   address   String?   // 🏠 основной адрес
   country   String?   // 🌍 страна
+  role      Role     @default(USER)   // 👈 новая колонка
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   orders Order[]
@@ -83,4 +84,9 @@ enum OrderStatus {
   IN_PROGRESS
   READY
   CANCELLED
+}
+
+enum Role {
+  USER
+  ADMIN
 }

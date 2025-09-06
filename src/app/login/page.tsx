@@ -1,61 +1,24 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import prisma from "@/lib/prisma";
-import bcrypt from "bcrypt";
+"use client";
 
-export const dynamic = "force-dynamic";
+import { signIn } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
+import { useState } from "react";
 
-// 🔑 Серверный action для входа
-async function loginAction(formData: FormData) {
-  "use server";
+export default function LoginPage() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get("error");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  const rawEmail = formData.get("email");
-  const rawPassword = formData.get("password");
-
-  if (!rawEmail || !rawPassword) {
-    redirect("/login?e=1");
-  }
-
-  const email = String(rawEmail).trim();
-  const password = String(rawPassword);
-
-  const c = await cookies();
-
-  // ⚡ Админ (по ENV)
-  if (password === process.env["ADMIN_PASSWORD"]) {
-    c.set("admin", "1", { path: "/", httpOnly: true, sameSite: "lax" });
-    c.set("userEmail", email, { path: "/", sameSite: "lax" });
-    c.set("admin_last_page", "/admin/products", {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await signIn("credentials", {
+      redirect: true,
+      email,
+      password,
+      callbackUrl: "/account", // юзера на аккаунт, админа middleware перенаправит в админку
     });
-    redirect("/admin/products");
   }
-
-  // ⚡ Обычный пользователь через БД
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || !user.password) {
-    redirect("/login?e=1");
-  }
-
-  const isValid = await bcrypt.compare(password, user.password);
-  if (!isValid) {
-    redirect("/login?e=1");
-  }
-
-  c.set("userEmail", email, { path: "/", sameSite: "lax" });
-  redirect("/account");
-}
-
-// 👇 Страница — асинхронная, ждём searchParams
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams?: Promise<{ e?: string }>;
-}) {
-  const sp = (await searchParams) ?? {};
-  const error = sp.e === "1";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white px-4">
@@ -67,10 +30,12 @@ export default async function LoginPage({
           Please enter your e-mail and password:
         </p>
 
-        <form action={loginAction} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <input
             name="email"
             type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
             className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
             placeholder="Email"
@@ -78,6 +43,8 @@ export default async function LoginPage({
           <input
             name="password"
             type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             required
             className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
             placeholder="Password"
@@ -94,13 +61,6 @@ export default async function LoginPage({
             LOGIN
           </button>
         </form>
-
-        <p className="mt-6 text-center text-sm text-gray-600">
-          Don&apos;t have an account?{" "}
-          <a href="/register" className="text-[#c7a17a] hover:underline">
-            Create one
-          </a>
-        </p>
       </div>
     </div>
   );
