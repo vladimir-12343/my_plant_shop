@@ -1,38 +1,52 @@
 "use client"
 
-import { signIn, getSession } from "next-auth/react"
-import { useState } from "react"
+import { signIn, useSession } from "next-auth/react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const error = searchParams.get("error")
+  const { data: session, status } = useSession()
+
+  const errorParam = searchParams.get("error")
+
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.role) {
+      if (session.user.role === "ADMIN") {
+        router.replace("/admin/products")
+      } else {
+        router.replace("/account")
+      }
+    }
+  }, [status, session, router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setLoading(true)
+    setError(null)
 
-    // ⚡️ логинимся без авто-редиректа
     const res = await signIn("credentials", {
       redirect: false,
       email,
       password,
+      callbackUrl: "/account",
     })
 
     if (res?.error) {
       console.error("Ошибка входа:", res.error)
+      setError("Неверный email или пароль")
+      setLoading(false)
       return
     }
 
-    // ⚡️ получаем сессию и проверяем роль
-    const session = await getSession()
-
-    if (session?.user?.role === "ADMIN") {
-      router.push("/admin/products")
-    } else {
-      router.push("/account")
+    if (res?.url) {
+      router.push(res.url)
     }
   }
 
@@ -66,17 +80,28 @@ export default function LoginPage() {
             placeholder="Password"
           />
 
-          {error && (
-            <p className="text-sm text-red-600">Invalid email or password</p>
+          {(error || errorParam) && (
+            <p className="text-sm text-red-600">
+              {error || "Неверный email или пароль"}
+            </p>
           )}
 
           <button
             type="submit"
-            className="w-full rounded-md bg-[#c7a17a] hover:bg-[#b8926d] text-white py-2 font-medium transition"
+            disabled={loading}
+            className="w-full rounded-md bg-[#c7a17a] hover:bg-[#b8926d] text-white py-2 font-medium transition disabled:opacity-60"
           >
-            LOGIN
+            {loading ? "Logging in..." : "LOGIN"}
           </button>
         </form>
+
+        {/* 👇 Добавляем переход на регистрацию */}
+        <p className="mt-6 text-center text-sm text-gray-600">
+          Нет аккаунта?{" "}
+          <a href="/register" className="text-[#c7a17a] hover:underline">
+            Зарегистрироваться
+          </a>
+        </p>
       </div>
     </div>
   )

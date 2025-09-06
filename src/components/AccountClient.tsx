@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { signOut } from "next-auth/react"
 import AddressForm from "@/components/AddressForm"
 
 export default function AccountClient({
@@ -19,13 +20,17 @@ export default function AccountClient({
         <div className="lg:col-span-2">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-2xl font-bold tracking-wide">Мой аккаунт</h1>
-            <a href="/logout" className="text-red-600 hover:underline text-sm">
+            <button
+              onClick={() => signOut()}
+              className="text-red-600 hover:underline text-sm"
+            >
               Выйти
-            </a>
+            </button>
           </div>
 
           <p className="mb-10 text-lg">
-            Добро пожаловать, <span className="font-medium">{fullName}</span>!
+            Добро пожаловать,{" "}
+            <span className="font-medium">{fullName}</span>!
           </p>
 
           <div>
@@ -85,7 +90,9 @@ export default function AccountClient({
           <p className="text-gray-600">
             {user.country || "Страна не указана"}
           </p>
-          <p className="text-gray-600">{user.address || "Адрес не указан"}</p>
+          <p className="text-gray-600">
+            {user.address || "Адрес не указан"}
+          </p>
 
           <AddressForm user={user} />
         </div>

@@ -1,20 +1,27 @@
-import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import prisma from "@/lib/prisma"
-import AccountClient from "@/components/AccountClient"   // 👈 импортируем client-компонент
+import AccountClient from "@/components/AccountClient"
+import { getServerSession } from "next-auth"
+import { authOptions } from "../api/auth/[...nextauth]/route" // 👈 путь к твоему NextAuth
 
 export const dynamic = "force-dynamic"
 
 export default async function AccountPage() {
-  const c = await cookies()
-  const email = c.get("userEmail")?.value
-  const isAdmin = c.get("admin")?.value === "1"
+  
+  const session = await getServerSession(authOptions)
 
-  if (!email) redirect("/login")
-  if (isAdmin) redirect("/admin/products")
+  if (!session?.user?.email) {
+    redirect("/login")
+  }
+  console.log("👉 SESSION:", session)
+
+  // Если админ → редиректим в админку
+  if (session.user.role === "ADMIN") {
+    redirect("/admin/products")
+  }
 
   const user = await prisma.user.findUnique({
-    where: { email },
+    where: { email: session.user.email },
     include: {
       orders: { orderBy: { createdAt: "desc" } },
     },
@@ -23,7 +30,7 @@ export default async function AccountPage() {
   if (!user) redirect("/login")
 
   const fullName =
-    [user.firstName, user.lastName].filter(Boolean).join(" ") || email
+    [user.firstName, user.lastName].filter(Boolean).join(" ") || session.user.email
 
   return <AccountClient user={user} fullName={fullName} />
 }

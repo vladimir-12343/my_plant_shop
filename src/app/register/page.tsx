@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -9,11 +10,13 @@ export default function RegisterPage() {
   const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setLoading(true)
 
     const res = await fetch("/api/auth/register", {
       method: "POST",
@@ -22,10 +25,25 @@ export default function RegisterPage() {
     })
 
     const data = await res.json()
+    setLoading(false)
+
     if (!res.ok) {
       setError(data.error || "Ошибка регистрации")
     } else {
-      router.push("/login")
+      // ✅ сразу авторизуем через next-auth
+      const loginRes = await signIn("credentials", {
+        redirect: false,
+        email,
+        password,
+        callbackUrl: "/account", // fallback
+      })
+
+      if (loginRes?.error) {
+        setError("Аккаунт создан, но вход не удался. Попробуйте войти вручную.")
+        router.push("/login")
+      } else if (loginRes?.url) {
+        router.push(loginRes.url) // /account или /admin/products
+      }
     }
   }
 
@@ -45,6 +63,7 @@ export default function RegisterPage() {
             placeholder="Имя"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
+            required
             className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
           />
 
@@ -53,6 +72,7 @@ export default function RegisterPage() {
             placeholder="Фамилия"
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
+            required
             className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
           />
 
@@ -78,9 +98,10 @@ export default function RegisterPage() {
 
           <button
             type="submit"
-            className="w-full rounded-md bg-[#c7a17a] hover:bg-[#b8926d] text-white py-2 font-medium transition"
+            disabled={loading}
+            className="w-full rounded-md bg-[#c7a17a] hover:bg-[#b8926d] text-white py-2 font-medium transition disabled:opacity-60"
           >
-            СОЗДАТЬ АККАУНТ
+            {loading ? "Создание..." : "СОЗДАТЬ АККАУНТ"}
           </button>
         </form>
 

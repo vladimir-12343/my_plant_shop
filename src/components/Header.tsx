@@ -3,9 +3,10 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { useEffect, useState, useRef, forwardRef } from "react"
+import { useState, forwardRef } from "react"
 import MegaMenu from "@/components/MegaMenu"
 import { useCart } from "@/components/CartContext"
+import UserMenu from "@/components/UserMenu"
 
 type HeaderProps = React.HTMLAttributes<HTMLElement>
 
@@ -52,84 +53,9 @@ const SHOP_SECTIONS = [
 const Header = forwardRef<HTMLElement, HeaderProps>((_props, ref) => {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
-
-  const [auth, setAuth] = useState<{ admin: boolean; userEmail: string | null }>({
-    admin: false,
-    userEmail: null,
-  })
-
-  // ДВА отдельных ref — для десктопного и мобильного меню аккаунта
-  const accountMenuRefDesktop = useRef<HTMLDivElement>(null)
-  const accountMenuRefMobile = useRef<HTMLDivElement>(null)
 
   const { cart, setCartOpen } = useCart()
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
-
-  useEffect(() => {
-    let alive = true
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((data) => {
-        if (!alive) return
-        setAuth({ admin: !!data.admin, userEmail: data.userEmail || null })
-      })
-      .catch(() => {})
-    return () => {
-      alive = false
-    }
-  }, [pathname])
-
-  // Закрытие дропдауна по клику вне ОБОИХ контейнеров
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      const t = e.target as Node
-      const inDesktop =
-        accountMenuRefDesktop.current &&
-        accountMenuRefDesktop.current.contains(t)
-      const inMobile =
-        accountMenuRefMobile.current &&
-        accountMenuRefMobile.current.contains(t)
-
-      if (!inDesktop && !inMobile) {
-        setAccountMenuOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
-
-  const renderAccountMenu = () => {
-    if (auth.admin) {
-      return (
-        <>
-          <Link href="/admin/products" className="block px-4 py-2 hover:bg-gray-50">
-            Админ панель
-          </Link>
-          <Link href="/logout" className="block px-4 py-2 hover:bg-gray-50">
-            Выйти
-          </Link>
-        </>
-      )
-    }
-    if (auth.userEmail) {
-      return (
-        <>
-          <Link href="/account" className="block px-4 py-2 hover:bg-gray-50">
-            Личный кабинет
-          </Link>
-          <Link href="/logout" className="block px-4 py-2 hover:bg-gray-50">
-            Выйти
-          </Link>
-        </>
-      )
-    }
-    return (
-      <Link href="/login" className="block px-4 py-2 hover:bg-gray-50">
-        Войти
-      </Link>
-    )
-  }
 
   return (
     <header ref={ref} className="fixed top-0 left-0 w-full z-50 bg-white shadow">
@@ -175,62 +101,91 @@ const Header = forwardRef<HTMLElement, HeaderProps>((_props, ref) => {
                   className="uppercase text-xs tracking-[0.25em] hover:text-gray-900"
                 />
               </li>
-              <li><Link href="/reviews" className="uppercase text-xs tracking-[0.25em] hover:text-gray-900">Отзывы</Link></li>
-              <li><Link href="/policy" className="uppercase text-xs tracking-[0.25em] hover:text-gray-900">Политика</Link></li>
-              <li><Link href="/wholesale" className="uppercase text-xs tracking-[0.25em] hover:text-gray-900">Опт</Link></li>
-              <li><Link href="/rehab" className="uppercase text-xs tracking-[0.25em] hover:text-gray-900">Реабилитация</Link></li>
-              <li><Link href="/orders" className="uppercase text-xs tracking-[0.25em] hover:text-gray-900">Заказы</Link></li>
+              <li>
+                <Link
+                  href="/reviews"
+                  className="uppercase text-xs tracking-[0.25em] hover:text-gray-900"
+                >
+                  Отзывы
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/policy"
+                  className="uppercase text-xs tracking-[0.25em] hover:text-gray-900"
+                >
+                  Политика
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/wholesale"
+                  className="uppercase text-xs tracking-[0.25em] hover:text-gray-900"
+                >
+                  Опт
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/rehab"
+                  className="uppercase text-xs tracking-[0.25em] hover:text-gray-900"
+                >
+                  Реабилитация
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/orders"
+                  className="uppercase text-xs tracking-[0.25em] hover:text-gray-900"
+                >
+                  Заказы
+                </Link>
+              </li>
             </ul>
           </nav>
 
           {/* Иконки справа */}
           <div className="flex items-center gap-6 text-gray-700">
-            {/* Аккаунт (desktop) */}
-            <div className="relative" ref={accountMenuRefDesktop}>
-              <button
-                onClick={() => setAccountMenuOpen(v => !v)}
-                className="hover:text-gray-900 relative top-1"
-                aria-label="Аккаунт"
-              >
-                <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeWidth="1.8" strokeLinecap="round" d="M20 21a8 8 0 10-16 0" />
-                  <circle cx="12" cy="7" r="4" strokeWidth="1.8" />
-                </svg>
-              </button>
-              {accountMenuOpen && (
-                <div className="absolute right-0 mt-2 w-48 rounded-xl border bg-white shadow-lg py-2 z-50">
-                  {renderAccountMenu()}
-                </div>
-              )}
-            </div>
+            {/* Аккаунт */}
+            <UserMenu />
 
             {/* Поиск */}
             <Link href="/search" className="hover:text-gray-900" aria-label="Поиск">
-              <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg
+                width="27"
+                height="27"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+              >
                 <circle cx="11" cy="11" r="7" strokeWidth="1.8" />
                 <path d="M20 20l-3.5-3.5" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             </Link>
 
             {/* Корзина */}
-            {!auth.admin && (
-              <button
-                onClick={() => setCartOpen(true)}
-                className="hover:text-gray-900 relative"
-                aria-label="Корзина"
+            <button
+              onClick={() => setCartOpen(true)}
+              className="hover:text-gray-900 relative"
+              aria-label="Корзина"
+            >
+              <svg
+                width="27"
+                height="27"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
               >
-                <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path d="M6 6h15l-2 9H8L6 6Z" strokeWidth="1.8" />
-                  <circle cx="9" cy="20" r="1.5" />
-                  <circle cx="18" cy="20" r="1.5" />
-                </svg>
-                {cartCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                    {cartCount}
-                  </span>
-                )}
-              </button>
-            )}
+                <path d="M6 6h15l-2 9H8L6 6Z" strokeWidth="1.8" />
+                <circle cx="9" cy="20" r="1.5" />
+                <circle cx="18" cy="20" r="1.5" />
+              </svg>
+              {cartCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {cartCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -250,62 +205,84 @@ const Header = forwardRef<HTMLElement, HeaderProps>((_props, ref) => {
 
           {/* Правая часть */}
           <div className="flex items-center gap-4">
-            {/* Аккаунт (mobile) */}
-            <div className="relative" ref={accountMenuRefMobile}>
-              <button
-                onClick={() => setAccountMenuOpen(v => !v)}
-                aria-label="Аккаунт"
-                className="hover:text-gray-900"
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" stroke="currentColor" fill="none">
-                  <path strokeWidth="1.8" strokeLinecap="round" d="M20 21a8 8 0 10-16 0" />
-                  <circle cx="12" cy="7" r="4" strokeWidth="1.8" />
-                </svg>
-              </button>
-              {accountMenuOpen && (
-                <div className="absolute right-0 mt-2 w-40 rounded-xl border bg-white shadow-lg py-2 z-50">
-                  {renderAccountMenu()}
-                </div>
-              )}
-            </div>
+            {/* Аккаунт */}
+            <UserMenu />
 
             {/* Поиск */}
             <Link href="/search" aria-label="Поиск">
-              <svg width="24" height="24" viewBox="0 0 24 24" stroke="currentColor" fill="none">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                fill="none"
+              >
                 <circle cx="11" cy="11" r="7" strokeWidth="1.8" />
-                <path d="M20 20l-3.5-3.5" strokeWidth="1.8" strokeLinecap="round" />
+                <path
+                  d="M20 20l-3.5-3.5"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
               </svg>
             </Link>
 
             {/* Корзина */}
-            {!auth.admin && (
-              <button onClick={() => setCartOpen(true)} aria-label="Корзина" className="relative">
-                <svg width="24" height="24" viewBox="0 0 24 24" stroke="currentColor" fill="none">
-                  <path d="M6 6h15l-2 9H8L6 6Z" strokeWidth="1.8" />
-                  <circle cx="9" cy="20" r="1.5" />
-                  <circle cx="18" cy="20" r="1.5" />
-                </svg>
-                {cartCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold px-1.5 rounded-full">
-                    {cartCount}
-                  </span>
-                )}
-              </button>
-            )}
+            <button
+              onClick={() => setCartOpen(true)}
+              aria-label="Корзина"
+              className="relative"
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                fill="none"
+              >
+                <path d="M6 6h15l-2 9H8L6 6Z" strokeWidth="1.8" />
+                <circle cx="9" cy="20" r="1.5" />
+                <circle cx="18" cy="20" r="1.5" />
+              </svg>
+              {cartCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold px-1.5 rounded-full">
+                  {cartCount}
+                </span>
+              )}
+            </button>
 
             {/* Бургер */}
             <button
-              onClick={() => setMobileOpen(v => !v)}
+              onClick={() => setMobileOpen((v) => !v)}
               className="text-gray-700 hover:text-gray-900"
               aria-label="Меню"
             >
               {mobileOpen ? (
-                <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="h-8 w-8"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               ) : (
-                <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                <svg
+                  className="h-8 w-8"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
                 </svg>
               )}
             </button>
@@ -316,13 +293,62 @@ const Header = forwardRef<HTMLElement, HeaderProps>((_props, ref) => {
         {mobileOpen && (
           <div className="md:hidden absolute top-full left-0 w-full bg-white shadow-lg z-50">
             <ul className="flex flex-col p-4 space-y-4">
-              <li><Link href="/" className="uppercase text-sm hover:text-gray-900">Главная</Link></li>
-              <li><Link href="/shop/all-plants" className="uppercase text-sm hover:text-gray-900">Магазин</Link></li>
-              <li><Link href="/reviews" className="uppercase text-sm hover:text-gray-900">Отзывы</Link></li>
-              <li><Link href="/policy" className="uppercase text-sm hover:text-gray-900">Политика</Link></li>
-              <li><Link href="/wholesale" className="uppercase text-sm hover:text-gray-900">Опт</Link></li>
-              <li><Link href="/rehab" className="uppercase text-sm hover:text-gray-900">Реабилитация</Link></li>
-              <li><Link href="/orders" className="uppercase text-sm hover:text-gray-900">Заказы</Link></li>
+              <li>
+                <Link
+                  href="/"
+                  className="uppercase text-sm hover:text-gray-900"
+                >
+                  Главная
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/shop/all-plants"
+                  className="uppercase text-sm hover:text-gray-900"
+                >
+                  Магазин
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/reviews"
+                  className="uppercase text-sm hover:text-gray-900"
+                >
+                  Отзывы
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/policy"
+                  className="uppercase text-sm hover:text-gray-900"
+                >
+                  Политика
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/wholesale"
+                  className="uppercase text-sm hover:text-gray-900"
+                >
+                  Опт
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/rehab"
+                  className="uppercase text-sm hover:text-gray-900"
+                >
+                  Реабилитация
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/orders"
+                  className="uppercase text-sm hover:text-gray-900"
+                >
+                  Заказы
+                </Link>
+              </li>
             </ul>
           </div>
         )}

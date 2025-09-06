@@ -1,33 +1,34 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import prisma from "@/lib/prisma";
+import { redirect } from "next/navigation"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import prisma from "@/lib/prisma"
 
 export default async function OrderDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: { id: string }
 }) {
-  const { id } = params;
-  const c = await cookies();
-  const email = c.get("userEmail")?.value;
+  const session = await getServerSession(authOptions)
 
-  if (!email) redirect("/login");
+  if (!session?.user?.email) {
+    redirect("/login")
+  }
 
   const order = await prisma.order.findUnique({
-    where: { id: Number(id) },
+    where: { id: Number(params.id) },
     include: { user: true },
-  });
+  })
 
-  if (!order || order.user?.email !== email) {
-    redirect("/account");
+  if (!order || order.user?.email !== session.user.email) {
+    redirect("/account")
   }
 
   const products: Array<{
-    id: number;
-    name: string;
-    price: number;
-    quantity: number;
-  }> = (order.products as any) || [];
+    id: number
+    name: string
+    price: number
+    quantity: number
+  }> = (order.products as any) || []
 
   return (
     <div className="max-w-3xl mx-auto p-6">
@@ -78,5 +79,5 @@ export default async function OrderDetailPage({
         Итого: {(order.total / 100).toFixed(2)} ₽
       </div>
     </div>
-  );
+  )
 }

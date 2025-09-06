@@ -6,21 +6,39 @@ export default function AddressForm({ user }: { user: any }) {
   const [country, setCountry] = useState(user?.country || "")
   const [address, setAddress] = useState(user?.address || "")
   const [message, setMessage] = useState("")
+  const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage("")
+    setLoading(true)
 
-    const res = await fetch("/api/account/address", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ country, address }),
-    })
+    try {
+      const res = await fetch("/api/account/address", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ country, address }),
+      })
 
-    if (res.ok) {
+      const data = await res.json()
+
+      if (res.status === 401) {
+        setMessage("⚠️ Сессия истекла, войдите заново")
+        window.location.href = "/login"
+        return
+      }
+
+      if (!res.ok) {
+        setMessage(data.error || "❌ Ошибка сохранения")
+        return
+      }
+
       setMessage("✅ Адрес успешно сохранён")
-    } else {
-      setMessage("❌ Ошибка сохранения")
+    } catch (err) {
+      console.error(err)
+      setMessage("❌ Ошибка сети")
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -42,9 +60,10 @@ export default function AddressForm({ user }: { user: any }) {
       />
       <button
         type="submit"
-        className="w-full bg-[#c7a17a] hover:bg-[#b8926d] text-white py-2 rounded transition"
+        disabled={loading}
+        className="w-full bg-[#c7a17a] hover:bg-[#b8926d] text-white py-2 rounded transition disabled:opacity-60"
       >
-        Сохранить адрес
+        {loading ? "Сохраняю..." : "Сохранить адрес"}
       </button>
       {message && <p className="text-sm text-gray-600">{message}</p>}
     </form>

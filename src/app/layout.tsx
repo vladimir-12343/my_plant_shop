@@ -4,6 +4,7 @@ import "./globals.css"
 
 import { CartProvider } from "../components/CartContext"
 import AppLayout from "../components/AppLayout"
+import { Providers } from "./providers"  // 👈 импортируем
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,9 +25,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ru">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        <CartProvider>
-          <AppLayout>{children}</AppLayout>
-        </CartProvider>
+        <Providers> {/* 👈 теперь весь App в SessionProvider */}
+          <CartProvider>
+            <AppLayout>{children}</AppLayout>
+          </CartProvider>
+        </Providers>
       </body>
     </html>
   )
