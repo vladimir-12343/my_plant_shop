@@ -1,7 +1,7 @@
 // src/app/api/auth/[...nextauth]/route.ts
 import NextAuth, { type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@auth/prisma-adapter";
+import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import prisma from "@/lib/prisma";
 import bcrypt from "bcrypt";
 
@@ -15,47 +15,53 @@ const authOptions: NextAuthOptions = {
         password: { label: "Пароль", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials.password) return null;
+  if (!credentials?.email || !credentials.password) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
-        if (!user || !user.password) return null;
+  const user = await prisma.user.findUnique({
+    where: { email: credentials.email },
+  });
+  console.log("🔎 Авторизация: найденный user:", user);
 
-        const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) return null;
+  if (!user || !user.password) return null;
 
-        // 👇 возвращаем id (string), email и роль
-        return {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-        };
-      },
+  const isValid = await bcrypt.compare(credentials.password, user.password);
+  console.log("🔎 Пароль верный?", isValid);
+
+  if (!isValid) return null;
+
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+  };
+},
     }),
   ],
   session: { strategy: "jwt" },
   ...(process.env.NEXTAUTH_SECRET ? { secret: process.env.NEXTAUTH_SECRET } : {}),
   callbacks: {
     async jwt({ token, user }) {
-      if (user) {
-        token["id"] = (user as any).id;     // string
-        token["role"] = (user as any).role; // string ("USER" | "ADMIN")
-      } else if (token?.["id"]) {
-        // обновляем роль из базы на всякий случай
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token["id"] as string },
-        });
-        if (dbUser) token["role"] = dbUser.role;
-      }
-      return token;
-    },
+  console.log("🔎 JWT callback: входящие token:", token, "user:", user);
+
+  if (user) {
+    token["id"] = (user as any).id;
+    token["role"] = (user as any).role;
+  } else if (token?.["id"]) {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: token["id"] as string },
+    });
+    if (dbUser) token["role"] = dbUser.role;
+  }
+
+  console.log("🔎 JWT callback: выходящий token:", token);
+  return token;
+},
     async session({ session, token }) {
       if (token?.["id"]) {
         (session.user as any) = {
           ...(session.user || {}),
-          id: token["id"],       // string
-          role: token["role"],   // "USER" | "ADMIN"
+          id: token["id"],
+          role: token["role"],
         };
       }
       return session;
@@ -65,4 +71,4 @@ const authOptions: NextAuthOptions = {
 
 const handler = NextAuth(authOptions);
 
-export { handler as GET, handler as POST };
+export { handler as GET, handler as POST, authOptions };

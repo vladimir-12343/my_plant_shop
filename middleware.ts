@@ -1,12 +1,15 @@
-// middleware.ts
+
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 
 export async function middleware(req: any) {
   const token = await getToken({
     req,
-    secret: process.env.NEXTAUTH_SECRET!, // ✅ уверен, что есть
+    secret: process.env.NEXTAUTH_SECRET!,
   });
+  console.log("🔎 MIDDLEWARE ВЫЗВАН ДЛЯ:", req.nextUrl.pathname);
+
+  console.log("🔎 Middleware token:", token);
 
   if (req.nextUrl.pathname.startsWith("/admin")) {
     if (!token) {

@@ -1,13 +1,13 @@
-import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/app/api/auth/[...nextauth]/route" // 👈 путь к твоему NextAuth
 
 export async function POST(req: Request) {
   try {
-    const c = cookies() // ✅ без await
-    const email = (await c).get("userEmail")?.value
+    const session = await getServerSession(authOptions)
 
-    if (!email) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Не авторизован" }, { status: 401 })
     }
 
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     const country: string | null = body.country ?? null
 
     const user = await prisma.user.update({
-      where: { email },
+      where: { email: session.user.email },
       data: { address, country },
     })
 
