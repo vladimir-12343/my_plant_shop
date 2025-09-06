@@ -21,10 +21,7 @@ export const authOptions: NextAuthOptions = {
         });
         if (!user || !user.password) return null;
 
-        const isValid = await bcrypt.compare(
-          credentials.password,
-          user.password
-        );
+        const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) return null;
 
         return {
@@ -36,11 +33,12 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: { strategy: "jwt" },
-  secret: process.env.NEXTAUTH_SECRET,
 
-  // 👇 кастомные страницы
+  // 👇 теперь TS не ругается, потому что мы явно сказали "точно будет"
+  secret: process.env.NEXTAUTH_SECRET!,
+
   pages: {
-    signIn: "/login", // вместо дефолтной страницы входа используем свою
+    signIn: "/login",
   },
 
   callbacks: {
