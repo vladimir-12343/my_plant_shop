@@ -4,22 +4,21 @@ import ProductCard, { ProductCardProduct } from "@/components/ProductCard"
 export default async function AllPlantsPage() {
   const products = await prisma.product.findMany({
     orderBy: { createdAt: "desc" },
-    include: {
-      category: true,
-      images: true,
-    },
+    include: { category: true, images: true },
   })
 
-  // 🎯 Нормализуем данные под ProductCardProduct
-  const formatted: ProductCardProduct[] = products.map((p) => ({
-    id: p.id,
-    name: p.name,
-    price: p.price,
-    discount: p.discount,
-    coverImage: p.coverImage,
-    stock: p.stock ?? 0,
-    images: p.images.map((img) => img.url), // ✅ только массив строк
-  }))
+  const formatted: ProductCardProduct[] = products.map((p) => {
+    const images = p.images.map((img) => img.url).filter(Boolean)
+    return {
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      discount: p.discount,
+      stock: p.stock ?? 0,
+      coverImage: p.coverImage || images[0] || null,
+      images,
+    }
+  })
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
