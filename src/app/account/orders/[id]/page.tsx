@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import prisma from "@/lib/prisma"
 
@@ -9,13 +9,13 @@ export default async function OrderDetailPage({
   params: { id: string }
 }) {
   const session = await getServerSession(authOptions)
+  if (!session?.user?.email) redirect("/login")
 
-  if (!session?.user?.email) {
-    redirect("/login")
-  }
+  const orderId = Number(params.id)
+  if (Number.isNaN(orderId)) redirect("/account")
 
   const order = await prisma.order.findUnique({
-    where: { id: Number(params.id) },
+    where: { id: orderId },
     include: { user: true },
   })
 
@@ -62,10 +62,7 @@ export default async function OrderDetailPage({
       ) : (
         <ul className="space-y-3">
           {products.map((p) => (
-            <li
-              key={p.id}
-              className="flex justify-between border-b pb-2 text-sm"
-            >
+            <li key={p.id} className="flex justify-between border-b pb-2 text-sm">
               <span>
                 {p.name} × {p.quantity}
               </span>
@@ -75,9 +72,7 @@ export default async function OrderDetailPage({
         </ul>
       )}
 
-      <div className="mt-6 font-bold">
-        Итого: {(order.total / 100).toFixed(2)} ₽
-      </div>
+      <div className="mt-6 font-bold">Итого: {(order.total / 100).toFixed(2)} ₽</div>
     </div>
   )
 }

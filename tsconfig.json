@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
     /* Базовые настройки */
-    "target": "ES2017",
+    "target": "ES2022",                    // ⬅️ современный таргет под Node 18/20
     "lib": ["dom", "dom.iterable", "esnext"],
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",         // ⬅️ важно для Next 13+ и subpath-импортов
     "jsx": "preserve",
     "incremental": true,
     "noEmit": true,
@@ -15,11 +15,11 @@
     "allowJs": true,
 
     /* Проверки */
-    "strict": true,                        // включает все строгие проверки
-    "skipLibCheck": true,                  // ✅ НЕ проверять типы в node_modules
+    "strict": true,
+    "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
-    "noUncheckedIndexedAccess": true,      // индексирование даёт |undefined
+    "noUncheckedIndexedAccess": true,
     "noPropertyAccessFromIndexSignature": true,
     "exactOptionalPropertyTypes": true,
     "strictNullChecks": true,
@@ -29,18 +29,18 @@
     "plugins": [{ "name": "next" }],
 
     /* Алиасы */
+    "baseUrl": ".",                        // ⬅️ нужен, чтобы заработали paths
     "paths": {
       "@/*": ["./src/*"]
     }
   },
   "include": [
-  "next-env.d.ts",
-  "**/*.ts",
-  "**/*.tsx",
-  "tailwind.config.js",
-  ".next/types/**/*.ts",
-  "types/**/*.d.ts"
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "tailwind.config.js",
+    ".next/types/**/*.ts",
+    "types/**/*.d.ts"
   ],
   "exclude": ["node_modules", ".next"]
-  
 }

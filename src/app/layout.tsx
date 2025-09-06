@@ -4,17 +4,10 @@ import "./globals.css"
 
 import { CartProvider } from "../components/CartContext"
 import AppLayout from "../components/AppLayout"
-import { Providers } from "./providers"  // 👈 импортируем
+import { Providers } from "./providers" // ✅
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-})
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-})
+const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] })
+const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Rare Plants Shop",
@@ -25,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ru">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        <Providers> {/* 👈 теперь весь App в SessionProvider */}
+        <Providers>
           <CartProvider>
             <AppLayout>{children}</AppLayout>
           </CartProvider>
