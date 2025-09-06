@@ -21,6 +21,10 @@ export interface ProductCardProps {
   onEdit?: (product: ProductCardProduct) => void;
 }
 
+// 👇 единый fallback (Cloudinary URL)
+const FALLBACK_IMAGE =
+  "https://res.cloudinary.com/dqeusirkr/image/upload/v1757154692/product-placeholder-wp_zzdg2j.jpg";
+
 export default function ProductCard({
   product,
   mode = "shop",
@@ -30,17 +34,17 @@ export default function ProductCard({
   const router = useRouter();
 
   // 👇 безопасно выбираем главное изображение
-  const fallback = "/placeholder-product.jpg"; // файл должен лежать в /public/
   const primaryImage = (() => {
     const c = product.coverImage?.trim() ?? "";
     if (c && c.startsWith("http")) return c; // Cloudinary URL
 
     const arr = Array.isArray(product.images) ? product.images : [];
     const firstValid = arr.find(
-      (u) => typeof u === "string" && u.trim().length > 0 && u.startsWith("http")
+      (u) =>
+        typeof u === "string" && u.trim().length > 0 && u.startsWith("http")
     );
 
-    return firstValid || fallback;
+    return firstValid || FALLBACK_IMAGE;
   })();
 
   const discount = product.discount ?? 0;
@@ -67,7 +71,7 @@ export default function ProductCard({
         className="relative aspect-square bg-gray-100 block"
       >
         <Image
-          src={primaryImage} // ← всегда безопасный URL
+          src={primaryImage}
           alt={product.name || "Товар"}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
@@ -109,7 +113,7 @@ export default function ProductCard({
                 id: product.id,
                 name: product.name,
                 price: newPrice,
-                coverImage: primaryImage, // ← безопасное изображение
+                coverImage: primaryImage,
                 quantity: 1,
                 stock: product.stock ?? 0,
               })
@@ -117,9 +121,7 @@ export default function ProductCard({
             disabled={!product.stock || product.stock <= 0}
             className="mt-4 w-full bg-green-700 hover:bg-green-800 text-white py-2 rounded transition-colors disabled:opacity-50"
           >
-            {product.stock && product.stock > 0
-              ? "В корзину"
-              : "Нет в наличии"}
+            {product.stock && product.stock > 0 ? "В корзину" : "Нет в наличии"}
           </button>
         ) : (
           <div className="mt-4 flex gap-2">

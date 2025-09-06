@@ -53,7 +53,6 @@ export async function GET(request: Request) {
   try {
     const [products, categories, totalProducts] = await Promise.all([
       prisma.product.findMany({
-        where: { isFeatured: true },
         select: {
           id: true,
           name: true,

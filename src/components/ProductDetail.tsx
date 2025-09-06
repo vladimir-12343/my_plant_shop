@@ -1,51 +1,56 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import Image from "next/image"
-import { useCart } from "@/components/CartContext"
+import { useState } from "react";
+import Image from "next/image";
+import { useCart } from "@/components/CartContext";
 
 interface Product {
-  id: number
-  name: string
-  description?: string | null
-  price: number
-  discount?: number | null
-  coverImage?: string | null
-  stock: number
+  id: number;
+  name: string;
+  description?: string | null;
+  price: number;
+  discount?: number | null;
+  coverImage?: string | null;
+  stock: number;
+  images?: string[] | null;
 }
 
-export default function ProductDetail({ product }: { product: Product }) {
-  const { addToCart } = useCart()
+// 👇 единый fallback (Cloudinary URL)
+const FALLBACK_IMAGE =
+  "https://res.cloudinary.com/dqeusirkr/image/upload/v1757154692/product-placeholder-wp_zzdg2j.jpg";
 
-  const discount = product.discount ?? 0
-  const hasDiscount = discount > 0
-  const oldPrice = product.price
+export default function ProductDetail({ product }: { product: Product }) {
+  const { addToCart } = useCart();
+
+  const discount = product.discount ?? 0;
+  const hasDiscount = discount > 0;
+  const oldPrice = product.price;
   const newPrice = hasDiscount
     ? Math.round(product.price * (1 - discount / 100))
-    : product.price
+    : product.price;
 
-  const [quantity, setQuantity] = useState(1)
+  const [quantity, setQuantity] = useState(1);
 
-  const increase = () => setQuantity(q => (q < product.stock ? q + 1 : q))
-  const decrease = () => setQuantity(q => (q > 1 ? q - 1 : q))
+  const increase = () => setQuantity((q) => (q < product.stock ? q + 1 : q));
+  const decrease = () => setQuantity((q) => (q > 1 ? q - 1 : q));
 
   const handleAddToCart = () => {
     addToCart({
       id: product.id,
       name: product.name,
       price: newPrice,
-      coverImage: product.coverImage ?? null, // ✅ нормализуем: string | null
+      coverImage: product.coverImage || FALLBACK_IMAGE,
       quantity,
       stock: product.stock,
-    })
-  }
+    });
+  };
 
   return (
     <div className="max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-2 gap-8">
       {/* Фото */}
       <div className="relative w-full aspect-square bg-gray-100 rounded-lg overflow-hidden">
         <Image
-          src={product.coverImage || "/images/placeholder-product.jpg"}
+          src={product.coverImage || FALLBACK_IMAGE}
           alt={product.name}
           fill
           className="object-cover"
@@ -87,8 +92,8 @@ export default function ProductDetail({ product }: { product: Product }) {
               max={product.stock}
               value={quantity}
               onChange={(e) => {
-                const val = Number(e.target.value)
-                if (val >= 1 && val <= product.stock) setQuantity(val)
+                const val = Number(e.target.value);
+                if (val >= 1 && val <= product.stock) setQuantity(val);
               }}
               className="w-16 text-center border rounded"
             />
@@ -117,5 +122,5 @@ export default function ProductDetail({ product }: { product: Product }) {
         </button>
       </div>
     </div>
-  )
+  );
 }

@@ -1,25 +1,29 @@
 import prisma from "@/lib/prisma"
+import { notFound } from "next/navigation"
 import ProductDetail from "@/components/ProductDetail"
 
 interface PageProps {
-  params: Promise<{ id: string }>
+  params: { id: string }
 }
 
 export default async function ProductPage({ params }: PageProps) {
-  // 👇 дожидаемся params
-  const { id } = await params
+  const id = Number(params.id)
+  if (isNaN(id)) return notFound()
 
-  const product = await prisma.product.findUnique({
-    where: { id: Number(id) },
-    include: { category: true },
+  const dbProduct = await prisma.product.findUnique({
+    where: { id },
+    include: {
+      category: true,
+      images: true,
+    },
   })
 
-  if (!product) {
-    return (
-      <div className="p-8 text-center text-gray-500">
-        Товар не найден
-      </div>
-    )
+  if (!dbProduct) return notFound()
+
+  // 🎯 Нормализуем для ProductDetail
+  const product = {
+    ...dbProduct,
+    images: dbProduct.images.map((img) => img.url), // ✅ только URL
   }
 
   return <ProductDetail product={product} />
