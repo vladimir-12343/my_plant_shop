@@ -1,7 +1,7 @@
 {
   "name": "my-plant-shop",
   "version": "0.1.0",
-  "packageManager": "pnpm@10.12.1",
+  
   "private": true,
   "scripts": {
     "postinstall": "prisma generate",
