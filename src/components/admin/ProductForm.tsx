@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, useMemo } from "react";
+import { useState, useTransition, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
@@ -13,7 +13,6 @@ export type Initial = {
   price: number;           // в копейках
   compareAtPrice?: number; // в копейках
   stock: number;
-  sku?: string;
   categoryId?: number;
   images: string[];
   discount?: number;       // 0..100
@@ -25,7 +24,6 @@ type FormState = {
   price?: string;
   compareAtPrice?: string;
   stock?: number;
-  sku?: string;
   categoryId?: number | string;
   newCategory?: string;
   images: string[];
@@ -62,12 +60,22 @@ interface ProductFormProps {
 export function ProductForm({ categories, initial, onCancel }: ProductFormProps) {
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  const [nameError, setNameError] = useState(false);
   const [pending, start] = useTransition();
   const router = useRouter();
 
   const [formState, setFormState] = useState<FormState>({ images: [] });
 
-  // Заполнить из initial при редактировании (и сразу отфильтровать пустые src)
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+
+  // автофокус при ошибке duplicate_name
+  useEffect(() => {
+    if (nameError && nameInputRef.current) {
+      nameInputRef.current.focus();
+    }
+  }, [nameError]);
+
+  // Заполнить из initial при редактировании
   useEffect(() => {
     if (initial && !formState._loadedFromInitial) {
       setFormState({
@@ -75,8 +83,7 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
         description: initial.description ?? "",
         price: centsToStr(initial.price),
         compareAtPrice: centsToStr(initial.compareAtPrice),
-        stock: initial.stock ?? 0,
-        sku: initial.sku ?? "",
+        stock: initial.stock ?? undefined,
         categoryId: initial.categoryId ?? "",
         images: sanitizeImages(initial.images),
         discount: initial.discount ?? 0,
@@ -90,6 +97,8 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
   ) => {
     const { name } = e.target;
     let { value } = e.target;
+
+    if (name === "name" && nameError) setNameError(false);
 
     if (name === "price") {
       const normalized = normalizeMoneyInput(value);
@@ -173,6 +182,7 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
     setFormState({ images: [] });
     setErr(null);
     setOk(null);
+    setNameError(false);
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -180,12 +190,14 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
     if (pending) return;
     setErr(null);
     setOk(null);
+    setNameError(false);
 
     const fd = new FormData(e.currentTarget as HTMLFormElement);
 
     const name = String(fd.get("name") || "").trim();
     if (!name) {
       setErr("Название обязательно для заполнения");
+      setNameError(true);
       return;
     }
 
@@ -196,15 +208,11 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
     }
 
     const compareAtCents = toCents(String(fd.get("compareAtPrice") || ""));
-    // if compareAt <= price — просто не шлём это поле
-
     const stock = Number(fd.get("stock") || 0);
-    const sku = String(fd.get("sku") || "").trim() || undefined;
 
     const rawCat = String(fd.get("categoryId") ?? "");
-    let categoryId = rawCat === "" ? NaN : Number(rawCat);
+    const categoryId: number | undefined = rawCat === "" ? undefined : Number(rawCat);
 
-    const newCategory = String(fd.get("newCategory") || "").trim();
     const description = String(fd.get("description") || "");
 
     const safeImages = sanitizeImages(formState.images);
@@ -222,16 +230,10 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
 
     start(async () => {
       try {
-        if ((Number.isNaN(categoryId) || !categoryId) && newCategory) {
-          const catRes = await fetch("/api/admin/categories", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: newCategory }),
-          });
-          if (!catRes.ok) throw new Error("Не удалось создать категорию");
-          const created: { id: number } = await catRes.json();
-          categoryId = created.id;
-        }
+        const url = initial
+          ? `/api/admin/products/${initial.id}`
+          : "/api/admin/products";
+        const method = initial ? "PATCH" : "POST";
 
         const body = {
           name,
@@ -241,18 +243,12 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
               ? compareAtCents
               : undefined,
           stock,
-          sku,
-          categoryId: Number.isNaN(categoryId) ? undefined : categoryId,
+          categoryId,
           description,
-          images: safeImages,                      // ← только валидные
+          images: safeImages,
           discount,
-          coverImage: safeImages[0] || null,       // ← не ""
+          coverImage: safeImages[0] || null,
         };
-
-        const url = initial
-          ? `/api/admin/products/${initial.id}`
-          : "/api/admin/products";
-        const method = initial ? "PATCH" : "POST";
 
         const res = await fetch(url, {
           method,
@@ -261,8 +257,15 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
         });
 
         if (!res.ok) {
-          const t = await res.text();
-          throw new Error(t || `Ошибка ${res.status}`);
+          const data = await res.json().catch(() => ({}));
+
+          // ✅ ловим дубликат имени
+          if (data?.error === "duplicate_name") {
+            setNameError(true);
+            throw new Error("Товар с таким названием уже существует");
+          }
+
+          throw new Error(data?.error || `Ошибка ${res.status}`);
         }
 
         setOk("Сохранено ✅");
@@ -281,98 +284,105 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
     });
   };
 
-  // превью тоже только из валидных ссылок
-  const previewImages = useMemo(() => sanitizeImages(formState.images), [formState.images]);
+  const previewImages = useMemo(
+    () => sanitizeImages(formState.images),
+    [formState.images]
+  );
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <input
-        name="name"
-        value={formState.name || ""}
-        onChange={handleChange}
-        placeholder="Название товара"
-        className="w-full rounded-xl border px-3 py-2"
-      />
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Название товара */}
+      <div>
+        <input
+          ref={nameInputRef}
+          name="name"
+          value={formState.name || ""}
+          onChange={handleChange}
+          placeholder="Название товара"
+          className={`w-full rounded-xl border px-4 py-3 text-base transition-colors
+            ${nameError ? "border-red-600 bg-red-100 focus:ring-red-600" : ""}`}
+        />
+        {nameError && (
+          <p className="mt-2 text-sm text-red-700 font-medium">
+            ⚠️ Название товара должно быть уникальным. Измените название.
+          </p>
+        )}
+      </div>
 
+      {/* Описание */}
       <textarea
         name="description"
         value={formState.description || ""}
         onChange={handleChange}
         placeholder="Описание товара"
-        className="w-full rounded-xl border px-3 py-2"
+        className="w-full rounded-xl border px-4 py-3 text-base min-h-[100px]"
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <input
-          name="price"
-          inputMode="decimal"
-          value={formState.price || ""}
-          onChange={handleChange}
-          onBlur={() => handlePriceBlur("price")}
-          placeholder="Цена, напр. 1999.00"
-          className="rounded-xl border px-3 py-2"
-        />
-        <input
-          name="compareAtPrice"
-          inputMode="decimal"
-          value={formState.compareAtPrice || ""}
-          onChange={handleChange}
-          onBlur={() => handlePriceBlur("compareAtPrice")}
-          placeholder="Старая цена"
-          className="rounded-xl border px-3 py-2"
-        />
-        <input
-          name="stock"
-          type="number"
-          min={0}
-          value={formState.stock ?? 0}
-          onChange={handleChange}
-          placeholder="Количество"
-          className="rounded-xl border px-3 py-2"
-        />
-      </div>
+      {/* Цена */}
+      <input
+        name="price"
+        inputMode="decimal"
+        value={formState.price || ""}
+        onChange={handleChange}
+        onBlur={() => handlePriceBlur("price")}
+        placeholder="Цена, напр. 1999.00"
+        className="w-full rounded-xl border px-4 py-3 text-base"
+      />
+      
+      {/* Количество */}
+      <input
+        name="stock"
+        type="number"
+        min={0}
+        value={formState.stock == null ? "" : String(formState.stock)}
+        onChange={(e) => {
+          const val = Number(e.target.value);
+          if (val < 0) return;
+          handleChange(e);
+        }}
+        placeholder="Введите количество растений"
+        className="w-full rounded-xl border px-4 py-3 text-base"
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <input
-          type="number"
-          name="discount"
-          min={0}
-          max={100}
-          value={formState.discount ?? ""}
-          onChange={handleChange}
-          placeholder="Скидка (%)"
-          className="rounded-xl border px-3 py-2"
-        />
+      {/* Скидка */}
+      <input
+        type="number"
+        name="discount"
+        min={0}
+        max={100}
+        value={formState.discount == null ? "" : String(formState.discount)}
+        onChange={handleChange}
+        placeholder="Скидка (%)"
+        className="w-full rounded-xl border px-4 py-3 text-base"
+      />
 
-        <select
-          name="categoryId"
-          value={formState.categoryId || ""}  // "" когда пусто
-          onChange={handleChange}
-          className="rounded-xl border px-3 py-2"
-        >
-          <option value="">-- выбрать категорию --</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Категория */}
+      <select
+        name="categoryId"
+        value={
+          formState.categoryId === "" || formState.categoryId == null
+            ? ""
+            : String(formState.categoryId)
+        }
+        onChange={handleChange}
+        className="w-full rounded-xl border px-4 py-3 text-base bg-white"
+      >
+        <option value="">-- выбрать категорию --</option>
+        {categories.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
 
+      {/* Новая категория */}
       <input
         name="newCategory"
         value={formState.newCategory || ""}
         onChange={handleChange}
         placeholder="Новая категория"
-        className="w-full rounded-xl border px-3 py-2"
-      />
-
-      <input
-        name="sku"
-        value={formState.sku || ""}
-        onChange={handleChange}
-        placeholder="Артикул (SKU)"
-        className="w-full rounded-xl border px-3 py-2"
+        disabled={!!formState.categoryId && formState.categoryId !== ""}
+        className="w-full rounded-xl border px-4 py-3 text-base disabled:bg-gray-100 disabled:text-gray-400"
       />
 
       {/* Загрузка файлов */}
@@ -382,25 +392,27 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
           accept="image/*"
           multiple
           onChange={handleFileChange}
-          className="w-full rounded-xl border px-3 py-2"
+          className="w-full rounded-xl border px-4 py-3 text-base"
         />
 
         {previewImages.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-2">
+          <div className="flex gap-3 mt-3 overflow-x-auto md:grid md:grid-cols-4 md:gap-4 md:overflow-visible">
             {previewImages.map((url, i) => (
-              <div key={url + i} className="relative">
-                {/* сюда никогда не попадёт "" */}
+              <div
+                key={url + i}
+                className="relative flex-shrink-0 w-28 h-28 md:w-full md:h-28"
+              >
                 <Image
                   src={url}
                   alt={`image-${i}`}
-                  width={80}
-                  height={80}
-                  className="object-cover rounded"
+                  width={120}
+                  height={120}
+                  className="object-cover rounded-lg w-full h-full"
                 />
                 <button
                   type="button"
                   onClick={() => handleRemoveImage(url)}
-                  className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                  className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm"
                   aria-label="Удалить изображение"
                 >
                   ×
@@ -411,11 +423,12 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
         )}
       </div>
 
-      <div className="flex gap-3">
+      {/* Кнопки */}
+      <div className="flex flex-col md:flex-row gap-3">
         <button
           type="submit"
-          disabled={pending}
-          className="flex-1 rounded-xl border px-3 py-2 hover:bg-gray-50 disabled:opacity-50"
+          disabled={pending || previewImages.length === 0}
+          className="flex-1 rounded-xl border px-4 py-3 text-base bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
         >
           {pending ? "Сохранение..." : initial ? "Обновить товар" : "Создать товар"}
         </button>
@@ -424,7 +437,7 @@ export function ProductForm({ categories, initial, onCancel }: ProductFormProps)
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded-xl border px-3 py-2 bg-gray-100 hover:bg-gray-200"
+            className="flex-1 rounded-xl border px-4 py-3 text-base bg-gray-100 hover:bg-gray-200"
           >
             Отмена
           </button>

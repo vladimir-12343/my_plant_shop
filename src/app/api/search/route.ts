@@ -3,7 +3,6 @@ import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import type { Prisma } from "@prisma/client"
 
-
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const q = (searchParams.get("q") || "").trim()
@@ -14,18 +13,24 @@ export async function GET(req: Request) {
   }
 
   const where: Prisma.ProductWhereInput = {
-  OR: [
-    { name: { contains: q, mode: "insensitive" } },
-    { description: { contains: q, mode: "insensitive" } },
-  ],
-} as const
+    OR: [
+      { name: { contains: q, mode: "insensitive" } },
+      { description: { contains: q, mode: "insensitive" } },
+    ],
+  }
 
   const [items, total] = await Promise.all([
     prisma.product.findMany({
       where,
       take,
       orderBy: { id: "desc" },
-      select: { id: true, name: true, price: true, coverImage: true },
+      select: { 
+        id: true, 
+        name: true, 
+        price: true, 
+        discount: true,   // 👈 добавили скидку
+        coverImage: true 
+      },
     }),
     prisma.product.count({ where }),
   ])

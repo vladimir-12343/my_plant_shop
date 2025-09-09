@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { invalidateProductsCache } from "@/lib/cache"
+import { Prisma } from "@prisma/client"
 
 // 🔧 генерация slug из названия
 function slugify(str: string) {
@@ -117,37 +118,39 @@ export async function GET(request: Request) {
 // ---------- POST /api/admin/products ----------
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
+    const body = await req.json();
 
-    const name = String(body.name || "").trim()
+    const name = String(body.name || "").trim();
     if (!name) {
       return NextResponse.json(
-        { success: false, error: "Название товара обязательно" },
+        { success: false, error: "missing_name" },
         { status: 400 }
-      )
+      );
     }
 
-    // приведение типов
-    const price = Number(body.price)
+    // приводим типы
+    const price = Number(body.price);
     const compareAtPrice =
-      body.compareAtPrice != null ? Number(body.compareAtPrice) : null
-    const stock = body.stock ?? 0
-    const sku = body.sku ? String(body.sku) : null
-    const description = body.description ? String(body.description) : null
-    const images: string[] = Array.isArray(body.images) ? body.images : []
-    const discount = body.discount ?? 0
-    const isFeatured = body.isFeatured ?? false
+      body.compareAtPrice != null ? Number(body.compareAtPrice) : null;
+    const stock = body.stock ?? 0;
+    const sku = body.sku ? String(body.sku) : null;
+    const description = body.description ? String(body.description) : null;
+    const images: string[] = Array.isArray(body.images) ? body.images : [];
+    const discount = body.discount ?? 0;
+    const isFeatured = body.isFeatured ?? false;
 
-    const categoryIdParsed = Number(body.categoryId)
-    const hasCategory = Number.isFinite(categoryIdParsed)
+    const categoryIdParsed = Number(body.categoryId);
+    const hasCategory = Number.isFinite(categoryIdParsed);
 
     const coverImage: string | null =
-      body.coverImage ?? (images.length ? images[0] : null)
+      body.coverImage ?? (images.length ? images[0] : null);
+
+    const slug = slugify(name); // 🔧 генерируем заранее
 
     const product = await prisma.product.create({
       data: {
         name,
-        slug: slugify(name),
+        slug,
         price,
         compareAtPrice,
         stock,
@@ -164,23 +167,58 @@ export async function POST(req: Request) {
           })),
         },
       },
-    })
+    });
 
     // ✅ инвалидация кеша
-    invalidateProductsCache(product.id)
+    invalidateProductsCache(product.id);
 
-    return NextResponse.json({ success: true, product })
-  } catch (error) {
-    console.error("Create product error:", error)
+    return NextResponse.json({ success: true, product });
+  } catch (error: any) {
+    // Диагностика в dev
+    const isDev = process.env.NODE_ENV === "development";
+    if (isDev) {
+      console.error("Create product error:", error);
+    }
 
-    const isDev = process.env.NODE_ENV === "development"
+    // ✅ Prisma: уникальное ограничение (дубликат)
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        // target может быть массивом или строкой (имя индекса)
+        const targetRaw = (error as any).meta?.target;
+        const targetStr = Array.isArray(targetRaw)
+          ? targetRaw.map((t: any) => String(t).toLowerCase()).join(",")
+          : String(targetRaw || "").toLowerCase();
+
+        if (isDev) {
+          console.error("P2002 target:", targetRaw);
+        }
+
+        // считаем дубликатом имени также конфликт по slug
+        if (targetStr.includes("name") || targetStr.includes("slug")) {
+          return NextResponse.json(
+            { success: false, error: "duplicate_name" },
+            { status: 400 }
+          );
+        }
+
+        // иной уникальный конфликт — вернём универсальную ошибку
+        return NextResponse.json(
+          { success: false, error: "unique_violation", target: targetRaw },
+          { status: 400 }
+        );
+      }
+    }
+
+    // ⚠️ Все остальные ошибки
     return NextResponse.json(
       {
         success: false,
-        error: "Не удалось создать товар",
+        error: "server_error",
         ...(isDev ? { details: String(error) } : {}),
       },
       { status: 500 }
-    )
+    );
   }
 }
+
+

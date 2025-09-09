@@ -5,7 +5,13 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 
-type Product = { id: number; name: string; price: number; coverImage?: string | null }
+type Product = { 
+  id: number
+  name: string
+  price: number // в копейках
+  discount?: number | null
+  coverImage?: string | null 
+}
 type ApiRes = { products: Product[]; total: number; pages: Array<{ title: string; href: string }> }
 
 export default function SearchOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -69,18 +75,30 @@ export default function SearchOverlay({ open, onClose }: { open: boolean; onClos
     onClose()
   }
 
+  const formatPrice = (value: number) =>
+    Intl.NumberFormat('ru-RU', {
+      style: 'currency',
+      currency: 'RUB',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value)
+
   return (
     <div className={`fixed inset-0 z-[70] ${open ? '' : 'pointer-events-none'}`}>
+      {/* фон снизу */}
       <div
         onClick={onClose}
         className={`absolute inset-0 bg-black/40 transition-opacity ${open ? 'opacity-100' : 'opacity-0'}`}
       />
+
+      {/* панель сверху */}
       <div
-        className={`absolute left-0 right-0 top-0 bottom-0 bg-white transition-transform duration-300 ease-out
+        className={`absolute left-0 right-0 top-0 h-[80vh] bg-white rounded-b-2xl shadow-lg transition-transform duration-300 ease-out
         ${open ? 'translate-y-0' : '-translate-y-3 opacity-0'}`}
         role="dialog"
         aria-modal="true"
       >
+        {/* поиск */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3 flex-1">
             <svg width="24" height="24" viewBox="0 0 24 24" className="text-gray-500">
@@ -109,7 +127,8 @@ export default function SearchOverlay({ open, onClose }: { open: boolean; onClos
 
         <div className="border-t border-gray-100" />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* контент */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 overflow-y-auto h-[calc(70vh-60px)]">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
             <div className="text-xs tracking-[0.25em] uppercase text-gray-500">
               {q.trim().length < 2
@@ -143,40 +162,50 @@ export default function SearchOverlay({ open, onClose }: { open: boolean; onClos
           )}
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {res.products.map((p) => (
-              <Link
-                key={p.id}
-                href={`/shop/${p.id}`}
-                onClick={onClose}
-                className="group"
-              >
-                <div className="aspect-square bg-white rounded-xl overflow-hidden border border-gray-200">
-                  {p.coverImage ? (
-                    <Image
-                      src={p.coverImage}
-                      alt={p.name}
-                      width={600}
-                      height={600}
-                      className="h-full w-full object-contain group-hover:scale-[1.02] transition"
-                    />
-                  ) : (
-                    <div className="h-full w-full grid place-items-center text-gray-400 text-sm">
-                      без изображения
-                    </div>
-                  )}
-                </div>
-                <div className="mt-3 text-xs tracking-[0.2em] uppercase line-clamp-2 text-gray-800">
-                  {p.name}
-                </div>
-                <div className="mt-1 text-sm text-gray-600">
-                  {Intl.NumberFormat('ru-RU', {
-                    style: 'currency',
-                    currency: 'RUB',
-                    maximumFractionDigits: 0,
-                  }).format(p.price/100)}
-                </div>
-              </Link>
-            ))}
+            {res.products.map((p) => {
+              const oldPrice = p.price / 100
+              const newPrice = p.discount ? oldPrice * (1 - p.discount / 100) : oldPrice
+
+              return (
+                <Link
+                  key={p.id}
+                  href={`/shop/${p.id}`}
+                  onClick={onClose}
+                  className="group"
+                >
+                  <div className="aspect-square bg-white rounded-xl overflow-hidden border border-gray-200">
+                    {p.coverImage ? (
+                      <Image
+                        src={p.coverImage}
+                        alt={p.name}
+                        width={600}
+                        height={600}
+                        className="h-full w-full object-contain group-hover:scale-[1.02] transition"
+                      />
+                    ) : (
+                      <div className="h-full w-full grid place-items-center text-gray-400 text-sm">
+                        без изображения
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-3 text-xs tracking-[0.2em] uppercase line-clamp-2 text-gray-800">
+                    {p.name}
+                  </div>
+                  <div className="mt-2 text-lg font-bold text-green-700">
+                    {p.discount ? (
+                      <>
+                        <span className="mr-2">{formatPrice(newPrice)}</span>
+                        <span className="line-through text-gray-400 text-sm">
+                          {formatPrice(oldPrice)}
+                        </span>
+                      </>
+                    ) : (
+                      formatPrice(oldPrice)
+                    )}
+                  </div>
+                </Link>
+              )
+            })}
           </div>
         </div>
       </div>

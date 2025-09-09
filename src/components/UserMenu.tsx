@@ -7,18 +7,16 @@ import { useEffect, useRef, useState } from "react"
 export default function UserMenu() {
   const { data: session, status } = useSession()
 
-  // Управление режимами
-  const [isHoverEnabled, setIsHoverEnabled] = useState(false) // десктоп с hover
-  const [hovered, setHovered] = useState(false)               // состояние ховера
-  const [open, setOpen] = useState(false)                     // состояние клика (мобилка)
+  const [isHoverEnabled, setIsHoverEnabled] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const closeTimer = useRef<NodeJS.Timeout | null>(null) // 👈 таймер закрытия
 
-  // Определяем, поддерживается ли hover (десктоп/ноут)
   useEffect(() => {
     const mq = window.matchMedia("(hover: hover) and (pointer: fine)")
     const update = () => setIsHoverEnabled(mq.matches)
     update()
-    // совместимость со старыми браузерами
     if (mq.addEventListener) mq.addEventListener("change", update)
     else mq.addListener(update)
     return () => {
@@ -27,7 +25,6 @@ export default function UserMenu() {
     }
   }, [])
 
-  // Клик вне — закрыть меню
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node)) {
@@ -41,7 +38,6 @@ export default function UserMenu() {
 
   if (status === "loading") return <span>...</span>
 
-  // Не авторизован
   if (!session) {
     return (
       <button
@@ -58,18 +54,25 @@ export default function UserMenu() {
     )
   }
 
-  // Авторизован
   const menuVisible = isHoverEnabled ? hovered : open
 
   return (
     <div
       ref={ref}
       className="relative"
-      onMouseEnter={() => isHoverEnabled && setHovered(true)}
-      onMouseLeave={() => isHoverEnabled && setHovered(false)}
+      onMouseEnter={() => {
+        if (isHoverEnabled) {
+          if (closeTimer.current) clearTimeout(closeTimer.current)
+          setHovered(true)
+        }
+      }}
+      onMouseLeave={() => {
+        if (isHoverEnabled) {
+          closeTimer.current = setTimeout(() => setHovered(false), 250) // 👈 задержка 250 мс
+        }
+      }}
     >
       <button
-        // на десктопе кликом не открываем (хватает hover), на мобилке — открываем
         onClick={() => { if (!isHoverEnabled) setOpen(v => !v) }}
         className="p-2 hover:text-gray-900"
         aria-haspopup="menu"
