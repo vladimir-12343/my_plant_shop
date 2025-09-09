@@ -7,6 +7,8 @@ import { useState, forwardRef } from "react"
 import MegaMenu from "@/components/MegaMenu"
 import { useCart } from "@/components/CartContext"
 import UserMenu from "@/components/UserMenu"
+import MobileDrawer from "@/components/MobileDrawer"
+import SearchOverlay from "@/components/SearchOverlay"
 
 type HeaderProps = React.HTMLAttributes<HTMLElement>
 
@@ -50,9 +52,12 @@ const SHOP_SECTIONS = [
   },
 ]
 
+const shopItems = SHOP_SECTIONS.find((s) => s.title === "Категории")?.items ?? []
+
 const Header = forwardRef<HTMLElement, HeaderProps>((_props, ref) => {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
 
   const { cart, setCartOpen } = useCart()
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
@@ -60,7 +65,7 @@ const Header = forwardRef<HTMLElement, HeaderProps>((_props, ref) => {
   return (
     <header ref={ref} className="fixed top-0 left-0 w-full z-50 bg-white shadow">
       <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12">
-        {/* DESKTOP */}
+        {/* ДЕСКТОП */}
         <div className="hidden md:flex items-center justify-between py-5 lg:py-0">
           {/* Лого */}
           <div className="flex-shrink-0">
@@ -146,11 +151,14 @@ const Header = forwardRef<HTMLElement, HeaderProps>((_props, ref) => {
 
           {/* Иконки справа */}
           <div className="flex items-center gap-6 text-gray-700">
-            {/* Аккаунт */}
             <UserMenu />
 
             {/* Поиск */}
-            <Link href="/search" className="hover:text-gray-900" aria-label="Поиск">
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="hover:text-gray-900"
+              aria-label="Поиск"
+            >
               <svg
                 width="27"
                 height="27"
@@ -161,7 +169,7 @@ const Header = forwardRef<HTMLElement, HeaderProps>((_props, ref) => {
                 <circle cx="11" cy="11" r="7" strokeWidth="1.8" />
                 <path d="M20 20l-3.5-3.5" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
-            </Link>
+            </button>
 
             {/* Корзина */}
             <button
@@ -189,9 +197,8 @@ const Header = forwardRef<HTMLElement, HeaderProps>((_props, ref) => {
           </div>
         </div>
 
-        {/* MOBILE */}
+        {/* МОБИЛЬНАЯ ШАПКА */}
         <div className="flex md:hidden items-center justify-between py-4">
-          {/* Лого */}
           <Link href="/" className="flex items-center gap-3">
             <Image
               src="/logo.png"
@@ -203,13 +210,10 @@ const Header = forwardRef<HTMLElement, HeaderProps>((_props, ref) => {
             />
           </Link>
 
-          {/* Правая часть */}
           <div className="flex items-center gap-4">
-            {/* Аккаунт */}
             <UserMenu />
 
-            {/* Поиск */}
-            <Link href="/search" aria-label="Поиск">
+            <button onClick={() => setSearchOpen(true)} aria-label="Поиск">
               <svg
                 width="24"
                 height="24"
@@ -224,9 +228,8 @@ const Header = forwardRef<HTMLElement, HeaderProps>((_props, ref) => {
                   strokeLinecap="round"
                 />
               </svg>
-            </Link>
+            </button>
 
-            {/* Корзина */}
             <button
               onClick={() => setCartOpen(true)}
               aria-label="Корзина"
@@ -250,7 +253,6 @@ const Header = forwardRef<HTMLElement, HeaderProps>((_props, ref) => {
               )}
             </button>
 
-            {/* Бургер */}
             <button
               onClick={() => setMobileOpen((v) => !v)}
               className="text-gray-700 hover:text-gray-900"
@@ -289,69 +291,15 @@ const Header = forwardRef<HTMLElement, HeaderProps>((_props, ref) => {
           </div>
         </div>
 
-        {/* мобильное меню */}
-        {mobileOpen && (
-          <div className="md:hidden absolute top-full left-0 w-full bg-white shadow-lg z-50">
-            <ul className="flex flex-col p-4 space-y-4">
-              <li>
-                <Link
-                  href="/"
-                  className="uppercase text-sm hover:text-gray-900"
-                >
-                  Главная
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/shop/all-plants"
-                  className="uppercase text-sm hover:text-gray-900"
-                >
-                  Магазин
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/reviews"
-                  className="uppercase text-sm hover:text-gray-900"
-                >
-                  Отзывы
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/policy"
-                  className="uppercase text-sm hover:text-gray-900"
-                >
-                  Политика
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/wholesale"
-                  className="uppercase text-sm hover:text-gray-900"
-                >
-                  Опт
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/rehab"
-                  className="uppercase text-sm hover:text-gray-900"
-                >
-                  Реабилитация
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/orders"
-                  className="uppercase text-sm hover:text-gray-900"
-                >
-                  Заказы
-                </Link>
-              </li>
-            </ul>
-          </div>
-        )}
+        <MobileDrawer
+          open={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          pathname={pathname}
+          shopItems={shopItems}
+        />
+
+        {/* Поиск */}
+        <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
       </div>
     </header>
   )
