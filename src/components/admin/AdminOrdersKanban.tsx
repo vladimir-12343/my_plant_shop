@@ -168,7 +168,7 @@ export default function AdminOrdersKanban({ orders }: { orders: any[] | undefine
 
       <div
         ref={boardRef}
-        className="flex md:grid md:grid-cols-4 gap-4 md:gap-6 w-full max-w-full overflow-x-auto md:overflow-visible snap-x snap-mandatory md:snap-none px-2 box-border min-h-0 overscroll-contain"
+        className="flex md:grid md:grid-cols-4 gap-4 md:gap-6 w-full max-w-full overflow-x-auto overflow-y-hidden md:overflow-visible snap-x snap-mandatory md:snap-none px-2 box-border min-h-0"
         style={{ height: boardHeight ?? undefined, WebkitOverflowScrolling: "touch" }}
       >
         {Object.entries(STATUSES)
