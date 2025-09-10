@@ -2,10 +2,8 @@
 
 import { useEffect, useRef, useState, useLayoutEffect, useMemo, useCallback } from "react"
 
-// ---------- Типы ----------
 type Status = "NEW" | "IN_PROGRESS" | "READY" | "CANCELLED"
 
-// ---------- Константы статусов ----------
 const STATUSES: Record<Status, { label: string; color: string }> = {
   NEW: { label: "Новые", color: "bg-yellow-50 border-yellow-200" },
   IN_PROGRESS: { label: "В работе", color: "bg-blue-50 border-blue-200" },
@@ -15,7 +13,6 @@ const STATUSES: Record<Status, { label: string; color: string }> = {
 
 const MOBILE_FLOW: Status[] = ["NEW", "IN_PROGRESS", "READY", "CANCELLED"]
 
-// ==== Иконки (inline SVG) ====
 const IconSearch = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10.5A6.5 6.5 0 1 1 4 10.5a6.5 6.5 0 0 1 13 0z"/></svg>
 )
@@ -23,7 +20,6 @@ const IconX = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M18 6L6 18M6 6l12 12"/></svg>
 )
 
-// Бейдж статуса
 function StatusBadge({ status }: { status: Status }) {
   const map: Record<Status, string> = {
     NEW: "bg-yellow-100 text-yellow-800",
@@ -32,13 +28,12 @@ function StatusBadge({ status }: { status: Status }) {
     CANCELLED: "bg-red-100 text-red-800",
   }
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${map[status]}`}> 
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${map[status]}`}>
       {STATUSES[status].label}
     </span>
   )
 }
 
-// Основной компонент
 export default function AdminOrdersKanban({ orders }: { orders: any[] | undefined }) {
   const [localOrders, setLocalOrders] = useState<any[]>(() => orders ?? [])
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null)
@@ -110,7 +105,6 @@ export default function AdminOrdersKanban({ orders }: { orders: any[] | undefine
     }
   }, [])
 
-  // ==== Поиск и группировка =====
   const q = query.trim().toLowerCase()
   const ordersByStatus = useMemo(() => {
     const res: Record<Status, any[]> = { NEW: [], IN_PROGRESS: [], READY: [], CANCELLED: [] }
@@ -136,10 +130,8 @@ export default function AdminOrdersKanban({ orders }: { orders: any[] | undefine
     return base.filter(s => s === statusFilter)
   }, [statusFilter, isMobile])
 
-  // ====== Рендер ======
   return (
     <>
-      {/* Верхняя панель */}
       <div className="px-2 mb-3 flex flex-col gap-2">
         <div className="relative w-full">
           <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -176,8 +168,8 @@ export default function AdminOrdersKanban({ orders }: { orders: any[] | undefine
 
       <div
         ref={boardRef}
-        className="flex md:grid md:grid-cols-4 gap-4 md:gap-6 w-full max-w-full overflow-x-auto md:overflow-visible snap-x snap-mandatory md:snap-none px-2 box-border min-h-0"
-        style={{ height: boardHeight ?? undefined }}
+        className="flex md:grid md:grid-cols-4 gap-4 md:gap-6 w-full max-w-full overflow-x-auto md:overflow-visible snap-x snap-mandatory md:snap-none px-2 box-border min-h-0 overscroll-contain"
+        style={{ height: boardHeight ?? undefined, WebkitOverflowScrolling: "touch" }}
       >
         {Object.entries(STATUSES)
           .filter(([status]) => visibleStatuses.includes(status as Status))
@@ -188,14 +180,17 @@ export default function AdminOrdersKanban({ orders }: { orders: any[] | undefine
                 key={status}
                 ref={(node) => { colRefs.current[status as Status] = node }}
                 className={`snap-start flex-none w-[90vw] md:w-auto ${color} border-2 rounded-2xl shadow-sm p-4 box-border min-h-0 max-w-full overflow-hidden`}
-                style={{ height: boardHeight ?? undefined }}
+                style={{ height: boardHeight ?? undefined, overscrollBehavior: "contain", touchAction: "pan-y" }}
               >
                 <div className="sticky top-0 z-10 -mx-4 px-4 pt-1 pb-3 bg-gradient-to-b from-[inherit] to-[color:transparent]">
                   <div className="flex items-center justify-between gap-3">
                     <h2 className="font-bold text-lg">{label} ({list.length})</h2>
                   </div>
                 </div>
-                <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3 scrollbar-hide" style={{ maxHeight: boardHeight ? boardHeight - 56 : undefined }}>
+                <div
+                  className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3 scrollbar-hide"
+                  style={{ maxHeight: boardHeight ? boardHeight - 56 : undefined, WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
+                >
                   {list.map((order) => (
                     <div key={order.id} className="p-4 bg-white rounded-xl shadow border border-gray-100 hover:shadow-md cursor-pointer" onClick={() => setSelectedOrder(order)}>
                       <div className="flex items-start justify-between gap-3">
@@ -214,7 +209,6 @@ export default function AdminOrdersKanban({ orders }: { orders: any[] | undefine
           })}
       </div>
 
-      {/* Модалка */}
       {selectedOrder && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-3">
           <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-lg w-full max-w-lg p-6 relative">
