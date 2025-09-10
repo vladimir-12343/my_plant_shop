@@ -1,49 +1,63 @@
 "use client"
 
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
-import { useEffect, useRef, useState, useLayoutEffect, useMemo } from "react"
+import { useEffect, useRef, useState, useLayoutEffect, useMemo, useCallback } from "react"
 
-const STATUSES: Record<string, { label: string; color: string }> = {
+// ---------- Типы ----------
+type Status = "NEW" | "IN_PROGRESS" | "READY" | "CANCELLED"
+
+// ---------- Константы статусов ----------
+const STATUSES: Record<Status, { label: string; color: string }> = {
   NEW: { label: "Новые", color: "bg-yellow-50 border-yellow-200" },
   IN_PROGRESS: { label: "В работе", color: "bg-blue-50 border-blue-200" },
   READY: { label: "Готовые", color: "bg-green-50 border-green-200" },
   CANCELLED: { label: "Отменённые", color: "bg-red-50 border-red-200" },
 }
 
-// найти вертикально-скроллируемого родителя (для автоскролла при drag)
-function getScrollParent(el: Element | null): HTMLElement | null {
-  let node: Element | null = el
-  while (node && node !== document.body) {
-    const s = getComputedStyle(node as HTMLElement)
-    const oy = s.overflowY
-    if ((oy === "auto" || oy === "scroll") && (node as HTMLElement).scrollHeight > (node as HTMLElement).clientHeight) {
-      return node as HTMLElement
-    }
-    node = node.parentElement
+const MOBILE_FLOW: Status[] = ["NEW", "IN_PROGRESS", "READY", "CANCELLED"]
+
+// ==== Иконки (inline SVG) ====
+const IconSearch = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10.5A6.5 6.5 0 1 1 4 10.5a6.5 6.5 0 0 1 13 0z"/></svg>
+)
+const IconX = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M18 6L6 18M6 6l12 12"/></svg>
+)
+
+// Бейдж статуса
+function StatusBadge({ status }: { status: Status }) {
+  const map: Record<Status, string> = {
+    NEW: "bg-yellow-100 text-yellow-800",
+    IN_PROGRESS: "bg-blue-100 text-blue-800",
+    READY: "bg-green-100 text-green-800",
+    CANCELLED: "bg-red-100 text-red-800",
   }
-  return null
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${map[status]}`}> 
+      {STATUSES[status].label}
+    </span>
+  )
 }
 
+// Основной компонент
 export default function AdminOrdersKanban({ orders }: { orders: any[] | undefined }) {
   const [localOrders, setLocalOrders] = useState<any[]>(() => orders ?? [])
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null)
   const [query, setQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<Status | "ALL">("ALL")
 
-  // при обновлении пропсов подтягиваем список
   useEffect(() => setLocalOrders(orders ?? []), [orders])
 
-  // drag-режим для мобилок (по умолчанию выкл), на десктопе всегда вкл
-  const [dragMode, setDragMode] = useState(true)
+  const [isMobile, setIsMobile] = useState(false)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const isCoarse = window.matchMedia?.("(pointer: coarse)")?.matches
-      if (isCoarse) setDragMode(false)
+      setIsMobile(isCoarse || window.innerWidth < 768)
+      const onResize = () => setIsMobile(window.matchMedia?.("(pointer: coarse)")?.matches || window.innerWidth < 768)
+      window.addEventListener("resize", onResize)
+      return () => window.removeEventListener("resize", onResize)
     }
   }, [])
-  const [isDragging, setIsDragging] = useState(false)
-  const draggingRef = useRef(false)
 
-  // вычисляем доступную высоту, чтобы внутри колонок точно был скролл «до низа»
   const boardRef = useRef<HTMLDivElement>(null)
   const [boardHeight, setBoardHeight] = useState<number | null>(null)
   useLayoutEffect(() => {
@@ -52,8 +66,8 @@ export default function AdminOrdersKanban({ orders }: { orders: any[] | undefine
       if (!el) return
       const rect = el.getBoundingClientRect()
       const vh = window.innerHeight
-      const bottomGap = 12 // небольшой отступ снизу
-      const h = Math.max(320, Math.floor(vh - rect.top - bottomGap))
+      const bottomGap = 12
+      const h = Math.max(360, Math.floor(vh - rect.top - bottomGap))
       setBoardHeight(h)
     }
     compute()
@@ -66,262 +80,173 @@ export default function AdminOrdersKanban({ orders }: { orders: any[] | undefine
     }
   }, [])
 
-  // refs колонок + табы прокрутки
-  const colRefs = useRef<Record<string, HTMLDivElement | null>>({})
-  const scrollToStatus = (status: string) => {
+  const colRefs = useRef<Record<Status, HTMLDivElement | null>>({ NEW: null, IN_PROGRESS: null, READY: null, CANCELLED: null })
+  const scrollToStatus = (status: Status) => {
     const el = colRefs.current[status]
     if (el) el.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" })
   }
 
-  // Эдж-скролл
-  const EDGE = 56
-  const STEP = 22
-  const handlePointerMove = (e: PointerEvent) => {
-    if (!draggingRef.current) return
+  const applyLocalUpdate = useCallback((orderId: number, patch: Partial<any>) => {
+    setLocalOrders(prev => (prev ?? []).map(o => (o.id === orderId ? { ...o, ...patch } : o)))
+    setSelectedOrder((prev: { id: number; }) => (prev && prev.id === orderId ? { ...prev, ...patch } : prev))
+  }, [])
 
-    const board = boardRef.current
-    if (board) {
-      const rect = board.getBoundingClientRect()
-      if (e.clientX > rect.right - EDGE) board.scrollLeft += STEP
-      else if (e.clientX < rect.left + EDGE) board.scrollLeft -= STEP
-    }
-    const el = document.elementFromPoint(e.clientX, e.clientY)
-    const sp = getScrollParent(el)
-    if (sp) {
-      const r = sp.getBoundingClientRect()
-      if (e.clientY > r.bottom - EDGE) sp.scrollTop += STEP
-      else if (e.clientY < r.top + EDGE) sp.scrollTop -= STEP
-    }
-  }
-  useEffect(() => () => window.removeEventListener("pointermove", handlePointerMove), [])
-
-  const onDragStart = () => {
-    draggingRef.current = true
-    setIsDragging(true)
-    window.addEventListener("pointermove", handlePointerMove, { passive: true })
-  }
-  const onDragEnd = async (result: any) => {
-    draggingRef.current = false
-    setIsDragging(false)
-    window.removeEventListener("pointermove", handlePointerMove)
-
-    const { destination, draggableId } = result
-    if (!destination) return
-    const orderId = Number(draggableId)
-    const newStatus = destination.droppableId
-
+  const patchStatus = useCallback(async (orderId: number, newStatus: Status) => {
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       })
-      if (!res.ok) return console.error("Ошибка при обновлении заказа:", await res.text())
+      if (!res.ok) {
+        console.error("Ошибка при обновлении заказа:", await res.text())
+        return
+      }
       const updatedOrder = await res.json()
       setLocalOrders(prev => (prev ?? []).map(o => (o.id === orderId ? updatedOrder : o)))
+      setSelectedOrder((prev: { id: number; }) => (prev && prev.id === orderId ? updatedOrder : prev))
     } catch (e) {
       console.error("Ошибка сети:", e)
     }
-  }
+  }, [])
 
-  // ===== Поиск =====
+  // ==== Поиск и группировка =====
   const q = query.trim().toLowerCase()
   const ordersByStatus = useMemo(() => {
-    const res: Record<string, any[]> = { NEW: [], IN_PROGRESS: [], READY: [], CANCELLED: [] }
+    const res: Record<Status, any[]> = { NEW: [], IN_PROGRESS: [], READY: [], CANCELLED: [] }
     for (const o of localOrders ?? []) {
       const idHit = String(o.id).includes(q)
       const emailHit = (o.user?.email || "").toLowerCase().includes(q)
-      const nameHit =
-        ((o.user?.firstName || "") + " " + (o.user?.lastName || "")).toLowerCase().includes(q)
+      const nameHit = ((o.user?.firstName || "") + " " + (o.user?.lastName || "")).toLowerCase().includes(q)
       const productsHit = Array.isArray(o.products)
         ? (o.products as any[]).some(p => (p?.name || "").toLowerCase().includes(q))
         : false
-
       if (!q || idHit || emailHit || nameHit || productsHit) {
-        const st = o.status ?? "NEW"
-        if (!res[st]) res[st] = []
+        const st: Status = o.status ?? "NEW"
         res[st].push(o)
       }
     }
     return res
   }, [localOrders, q])
 
+  const visibleStatuses = useMemo(() => {
+    const all: Status[] = ["NEW", "IN_PROGRESS", "READY", "CANCELLED"]
+    const base = isMobile ? MOBILE_FLOW : all
+    if (statusFilter === "ALL") return base
+    return base.filter(s => s === statusFilter)
+  }, [statusFilter, isMobile])
+
+  // ====== Рендер ======
   return (
     <>
-      {/* Верхняя панель: поиск + (моб) режим перетаскивания + табы статусов */}
-      <div className="px-2 mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-2 w-full md:max-w-md">
-          <div className="relative w-full">
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Поиск: #id, e-mail, имя или товар…"
-              className="w-full rounded-lg border px-3 py-2 pr-9 bg-white"
-              inputMode="search"
-            />
-            {query && (
-              <button
-                onClick={() => setQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-black"
-                aria-label="Очистить"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-          {/* тумблер для мобилки */}
-          <button
-            onClick={() => setDragMode(v => !v)}
-            className={`md:hidden shrink-0 rounded-full border px-3 py-2 text-sm ${dragMode ? "bg-black text-white" : "bg-white"}`}
+      {/* Верхняя панель */}
+      <div className="px-2 mb-3 flex flex-col gap-2">
+        <div className="relative w-full">
+          <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Поиск: #id, e-mail, имя или товар…"
+            className="w-full rounded-xl border px-9 py-2 bg-white outline-none focus:ring-4 focus:ring-black/5"
+            inputMode="search"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-black"
+              aria-label="Очистить"
+            >
+              <IconX className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+        {isMobile && (
+          <select
+            className="rounded-lg border px-3 py-2 text-sm bg-white"
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value as Status | "ALL"); scrollToStatus(e.target.value as Status) }}
           >
-            {dragMode ? "Готово" : "Перемещать"}
-          </button>
-        </div>
-
-        {/* Табы статусов (скрыты на десктопе, где видны все колонки) */}
-        <div className="md:hidden -mx-1 px-1">
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            {Object.entries(STATUSES).map(([status, { label }]) => (
-              <button
-                key={status}
-                onClick={() => scrollToStatus(status)}
-                className="whitespace-nowrap rounded-full border px-3 py-1.5 text-sm bg-white active:scale-[0.98]"
-              >
-                {label}
-              </button>
+            <option value="ALL">Все</option>
+            {MOBILE_FLOW.map(st => (
+              <option key={st} value={st}>{STATUSES[st].label}</option>
             ))}
-          </div>
-        </div>
+          </select>
+        )}
       </div>
 
-      <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        {/* Доска (высота вычисляется динамически, чтобы внутри всегда был скролл) */}
-        <div
-          ref={boardRef}
-          className="
-            flex md:grid md:grid-cols-4
-            gap-4 md:gap-6
-            w-full max-w-full
-            overflow-x-auto md:overflow-visible
-            snap-x snap-mandatory md:snap-none
-            px-2 box-border
-            min-h-0
-          "
-          style={{
-            height: boardHeight ?? undefined,
-            WebkitOverflowScrolling: "touch",
-            overscrollBehaviorX: "contain",
-            touchAction: (dragMode || isDragging) ? "none" : "pan-x",
-          }}
-        >
-          {Object.entries(STATUSES).map(([status, { label, color }]) => {
-            const list = ordersByStatus[status] || []
+      <div
+        ref={boardRef}
+        className="flex md:grid md:grid-cols-4 gap-4 md:gap-6 w-full max-w-full overflow-x-auto md:overflow-visible snap-x snap-mandatory md:snap-none px-2 box-border min-h-0"
+        style={{ height: boardHeight ?? undefined }}
+      >
+        {Object.entries(STATUSES)
+          .filter(([status]) => visibleStatuses.includes(status as Status))
+          .map(([status, { label, color }]) => {
+            const list = ordersByStatus[status as Status] || []
             return (
-              <Droppable droppableId={status} key={status}>
-                {(provided) => (
-                  <div
-                    ref={(node) => {
-                      provided.innerRef(node)
-                      colRefs.current[status] = node
-                    }}
-                    {...provided.droppableProps}
-                    className={`
-                      snap-start
-                      flex-none w-[90vw] md:w-auto
-                      ${color}
-                      border-2 rounded-lg shadow-sm
-                      p-4
-                      box-border
-                      min-h-0 max-w-full overflow-hidden
-                    `}
-                    style={{
-                      height: boardHeight ?? undefined,
-                      touchAction: dragMode ? "none" : "pan-y",
-                      overscrollBehaviorY: "contain",
-                    }}
-                  >
-                    <h2 className="font-bold mb-4 text-lg sticky top-0 bg-inherit/90 backdrop-blur z-10">
-                      {label} ({list.length})
-                    </h2>
-
-                    {/* ВНУТРЕННИЙ СКРОЛЛ СПИСКА — докручивается до самого низа */}
-                    <div
-                      className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3 scrollbar-hide"
-                      style={{ WebkitOverflowScrolling: "touch", maxHeight: boardHeight ? boardHeight - 56 : undefined }}
-                    >
-                      {list.map((order, index) => (
-                        <Draggable key={order.id} draggableId={String(order.id)} index={index}>
-                          {(provided, snapshot) => {
-                            const handleProps = dragMode ? provided.dragHandleProps : {}
-                            return (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                {...handleProps}
-                                onClick={() => {
-                                  if (draggingRef.current) return
-                                  setSelectedOrder(order)
-                                }}
-                                className={`
-                                  p-4 w-full max-w-full box-border
-                                  bg-white rounded-xl shadow
-                                  transition select-none
-                                  ${dragMode ? "cursor-grab active:cursor-grabbing" : "cursor-default"}
-                                  overflow-hidden
-                                  ${snapshot.isDragging ? "rotate-2 scale-[1.02] shadow-lg" : "hover:shadow-md"}
-                                `}
-                                style={{
-                                  ...provided.draggableProps.style,
-                                  touchAction: dragMode ? (snapshot.isDragging ? "none" : "none") : "auto",
-                                }}
-                              >
-                                <p className="font-medium min-w-0 break-words break-all">
-                                  Заказ #{order.id} — {(order.total / 100).toFixed(2)} ₽
-                                </p>
-                                <p className="text-sm text-gray-600 break-words break-all">
-                                  {order.user?.firstName} {order.user?.lastName} ({order.user?.email})
-                                </p>
-                                <p className="text-xs text-gray-400">
-                                  {new Date(order.createdAt).toLocaleString("ru-RU")}
-                                </p>
-                                {!dragMode && (
-                                  <div className="mt-2 text-[11px] text-gray-400 md:hidden">
-                                    Нужно перетащить? Включите «Перемещать» сверху
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          }}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </div>
+              <div
+                key={status}
+                ref={(node) => { colRefs.current[status as Status] = node }}
+                className={`snap-start flex-none w-[90vw] md:w-auto ${color} border-2 rounded-2xl shadow-sm p-4 box-border min-h-0 max-w-full overflow-hidden`}
+                style={{ height: boardHeight ?? undefined }}
+              >
+                <div className="sticky top-0 z-10 -mx-4 px-4 pt-1 pb-3 bg-gradient-to-b from-[inherit] to-[color:transparent]">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="font-bold text-lg">{label} ({list.length})</h2>
                   </div>
-                )}
-              </Droppable>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3 scrollbar-hide" style={{ maxHeight: boardHeight ? boardHeight - 56 : undefined }}>
+                  {list.map((order) => (
+                    <div key={order.id} className="p-4 bg-white rounded-xl shadow border border-gray-100 hover:shadow-md cursor-pointer" onClick={() => setSelectedOrder(order)}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold leading-tight truncate">Заказ #{order.id}</p>
+                          <p className="text-sm text-gray-600 truncate">{order.user?.firstName} {order.user?.lastName} · {order.user?.email}</p>
+                        </div>
+                        <StatusBadge status={order.status ?? "NEW"} />
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500">{new Date(order.createdAt).toLocaleString("ru-RU")}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )
           })}
-        </div>
-      </DragDropContext>
+      </div>
 
-      {/* Модалка с деталями */}
+      {/* Модалка */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3">
-          <div className="bg-white rounded-xl shadow-lg w-full max-w-lg p-6 relative">
-            <button
-              onClick={() => setSelectedOrder(null)}
-              className="absolute top-3 right-3 text-gray-500 hover:text-black"
-            >
-              ✕
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-3">
+          <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-lg w-full max-w-lg p-6 relative">
+            <button onClick={() => setSelectedOrder(null)} className="absolute top-3 right-3 text-gray-500 hover:text-black" aria-label="Закрыть">
+              <IconX className="h-5 w-5" />
             </button>
-
-            <h2 className="text-xl font-bold mb-4">Заказ #{selectedOrder.id}</h2>
-            <p className="mb-2">Клиент: {selectedOrder.user?.firstName} {selectedOrder.user?.lastName}</p>
-            <p className="mb-2 break-words break-all">Email: {selectedOrder.user?.email}</p>
-            <p className="mb-4 font-medium">Сумма: {(selectedOrder.total / 100).toFixed(2)} ₽</p>
-
-            <h3 className="font-semibold mb-2">Состав заказа:</h3>
-            <ul className="space-y-2 text-sm max-h-[45vh] overflow-y-auto pr-1">
+            <h2 className="text-xl font-bold mb-1">Заказ #{selectedOrder.id}</h2>
+            <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+              <span>{new Date(selectedOrder.createdAt).toLocaleString("ru-RU")}</span>
+              <StatusBadge status={selectedOrder.status ?? "NEW"} />
+            </div>
+            <div className="grid grid-cols-1 gap-2 text-sm">
+              <div className="flex items-center justify-between"><span className="text-gray-500">Клиент</span><span className="font-medium text-right truncate">{selectedOrder.user?.firstName} {selectedOrder.user?.lastName}</span></div>
+              <div className="flex items-center justify-between"><span className="text-gray-500">Email</span><span className="font-medium text-right break-all">{selectedOrder.user?.email}</span></div>
+            </div>
+            <div className="mt-4 flex items-center gap-2">
+              <select
+                className="rounded-lg border px-3 py-2 text-sm bg-white"
+                value={selectedOrder.status}
+                onChange={async (e) => {
+                  const value = e.target.value as Status
+                  await patchStatus(selectedOrder.id, value)
+                  applyLocalUpdate(selectedOrder.id, { status: value })
+                }}
+              >
+                {(isMobile ? MOBILE_FLOW : (Object.keys(STATUSES) as Status[])).map(st => (
+                  <option key={st} value={st}>{STATUSES[st].label}</option>
+                ))}
+              </select>
+            </div>
+            <h3 className="font-semibold mt-6 mb-2">Состав заказа</h3>
+            <ul className="space-y-2 text-sm max-h-[40vh] overflow-y-auto pr-1">
               {(selectedOrder.products as any[])?.map((p, i) => (
                 <li key={i} className="flex justify-between border-b pb-1 text-gray-700">
                   <span className="break-words break-all">{p.name} × {p.quantity}</span>
