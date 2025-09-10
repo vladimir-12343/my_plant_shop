@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useRef, useState, useLayoutEffect, useMemo, useCallback } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 
+// ---------- Типы ----------
 type Status = "NEW" | "IN_PROGRESS" | "READY" | "CANCELLED"
 
+// ---------- Константы статусов ----------
 const STATUSES: Record<Status, { label: string; color: string }> = {
   NEW: { label: "Новые", color: "bg-yellow-50 border-yellow-200" },
   IN_PROGRESS: { label: "В работе", color: "bg-blue-50 border-blue-200" },
@@ -11,8 +13,15 @@ const STATUSES: Record<Status, { label: string; color: string }> = {
   CANCELLED: { label: "Отменённые", color: "bg-red-50 border-red-200" },
 }
 
-const MOBILE_FLOW: Status[] = ["NEW", "IN_PROGRESS", "READY", "CANCELLED"]
+const FLOW: Status[] = ["NEW", "IN_PROGRESS", "READY", "CANCELLED"]
 
+const nextOf = (s: Status): Status =>
+  FLOW[Math.min(FLOW.indexOf(s) + 1, FLOW.length - 1)]!
+
+const prevOf = (s: Status): Status =>
+  FLOW[Math.max(FLOW.indexOf(s) - 1, 0)]!
+
+// ==== Иконки (inline SVG) ====
 const IconSearch = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10.5A6.5 6.5 0 1 1 4 10.5a6.5 6.5 0 0 1 13 0z"/></svg>
 )
@@ -20,6 +29,7 @@ const IconX = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M18 6L6 18M6 6l12 12"/></svg>
 )
 
+// Бейдж статуса
 function StatusBadge({ status }: { status: Status }) {
   const map: Record<Status, string> = {
     NEW: "bg-yellow-100 text-yellow-800",
@@ -34,73 +44,23 @@ function StatusBadge({ status }: { status: Status }) {
   )
 }
 
-export default function AdminOrdersKanban({ orders }: { orders: any[] | undefined }) {
+// === Упрощённый список заказов (без канбана) ===
+function AdminOrdersKanban({ orders }: { orders: any[] | undefined }) {
   const [localOrders, setLocalOrders] = useState<any[]>(() => orders ?? [])
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null)
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<Status | "ALL">("ALL")
 
+  // Приходят новые пропсы — синхронизируем
   useEffect(() => setLocalOrders(orders ?? []), [orders])
 
-  const [isMobile, setIsMobile] = useState(false)
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const isCoarse = window.matchMedia?.("(pointer: coarse)")?.matches
-      setIsMobile(isCoarse || window.innerWidth < 768)
-      const onResize = () => setIsMobile(window.matchMedia?.("(pointer: coarse)")?.matches || window.innerWidth < 768)
-      window.addEventListener("resize", onResize)
-      return () => window.removeEventListener("resize", onResize)
-    }
-  }, [])
-
-  const boardRef = useRef<HTMLDivElement>(null)
-  const initialTopRef = useRef<number>(0)
-  const [boardHeight, setBoardHeight] = useState<number | null>(null)
-
-  useLayoutEffect(() => {
-    const compute = () => {
-      const el = boardRef.current
-      if (!el) return
-      const bottomGap = 12
-      const top = initialTopRef.current || el.getBoundingClientRect().top
-      const vh = window.innerHeight
-      const h = Math.max(360, Math.floor(vh - top - bottomGap))
-      setBoardHeight(h)
-    }
-    // Зафиксируем исходный отступ сверху относительно viewport
-    if (boardRef.current) {
-      initialTopRef.current = boardRef.current.getBoundingClientRect().top
-    }
-    compute()
-    window.addEventListener("resize", compute)
-    return () => {
-      window.removeEventListener("resize", compute)
-    }
-  }, [])
-
-  // Запрещаем вертикальный скролл body на этой странице — вертикальный скролл только внутри колонок
-  useEffect(() => {
-    const prevOverflowY = document.body.style.overflowY
-    const prevOverscroll = (document.body.style as any).overscrollBehaviorY
-    document.body.style.overflowY = "hidden"
-    ;(document.body.style as any).overscrollBehaviorY = "contain"
-    return () => {
-      document.body.style.overflowY = prevOverflowY
-      ;(document.body.style as any).overscrollBehaviorY = prevOverscroll || "auto"
-    }
-  }, [])
-
-  const colRefs = useRef<Record<Status, HTMLDivElement | null>>({ NEW: null, IN_PROGRESS: null, READY: null, CANCELLED: null })
-  const scrollToStatus = (status: Status) => {
-    const el = colRefs.current[status]
-    if (el) el.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" })
-  }
-
+  // Быстрое локальное обновление + синхронизация открытой модалки
   const applyLocalUpdate = useCallback((orderId: number, patch: Partial<any>) => {
     setLocalOrders(prev => (prev ?? []).map(o => (o.id === orderId ? { ...o, ...patch } : o)))
     setSelectedOrder((prev: { id: number; }) => (prev && prev.id === orderId ? { ...prev, ...patch } : prev))
   }, [])
 
+  // PATCH статуса на сервере + обновление локального состояния
   const patchStatus = useCallback(async (orderId: number, newStatus: Status) => {
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
@@ -120,44 +80,35 @@ export default function AdminOrdersKanban({ orders }: { orders: any[] | undefine
     }
   }, [])
 
+  // Поиск + фильтрация
   const q = query.trim().toLowerCase()
-  const ordersByStatus = useMemo(() => {
-    const res: Record<Status, any[]> = { NEW: [], IN_PROGRESS: [], READY: [], CANCELLED: [] }
-    for (const o of localOrders ?? []) {
+  const filtered = useMemo(() => {
+    const base = statusFilter === "ALL"
+      ? (localOrders ?? [])
+      : (localOrders ?? []).filter(o => (o.status ?? "NEW") === statusFilter)
+
+    return base.filter(o => {
+      if (!q) return true
       const idHit = String(o.id).includes(q)
       const emailHit = (o.user?.email || "").toLowerCase().includes(q)
       const nameHit = ((o.user?.firstName || "") + " " + (o.user?.lastName || "")).toLowerCase().includes(q)
       const productsHit = Array.isArray(o.products)
         ? (o.products as any[]).some(p => (p?.name || "").toLowerCase().includes(q))
         : false
-      if (!q || idHit || emailHit || nameHit || productsHit) {
-        const st: Status = o.status ?? "NEW"
-        res[st].push(o)
-      }
-    }
-    return res
-  }, [localOrders, q])
+      return idHit || emailHit || nameHit || productsHit
+    })
+  }, [localOrders, q, statusFilter])
 
-  const visibleStatuses = useMemo(() => {
-    const all: Status[] = ["NEW", "IN_PROGRESS", "READY", "CANCELLED"]
-    const base = isMobile ? MOBILE_FLOW : all
-    if (statusFilter === "ALL") return base
-    return base.filter(s => s === statusFilter)
-  }, [statusFilter, isMobile])
-
-  // конвертируем вертикальное колесо мыши в горизонтальный скролл на десктопе
-  const onWheelToHorizontal: React.WheelEventHandler<HTMLDivElement> = (e) => {
-    if (isMobile) return
-    const el = boardRef.current
-    if (!el) return
-    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-      el.scrollLeft += e.deltaY
-      e.preventDefault()
-    }
-  }
+  // Счётчики по статусам (для подсказки пользователю)
+  const counts = useMemo(() => {
+    const c: Record<Status, number> = { NEW: 0, IN_PROGRESS: 0, READY: 0, CANCELLED: 0 }
+    for (const o of localOrders ?? []) c[(o.status ?? "NEW") as Status]++
+    return c
+  }, [localOrders])
 
   return (
     <>
+      {/* Верхняя панель: Поиск + один селект для выбора статуса */}
       <div className="px-2 mb-3 flex flex-col gap-2">
         <div className="relative w-full">
           <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -178,94 +129,108 @@ export default function AdminOrdersKanban({ orders }: { orders: any[] | undefine
             </button>
           )}
         </div>
-        {isMobile && (
+
+        <div className="flex items-center gap-2">
           <select
             className="rounded-lg border px-3 py-2 text-sm bg-white"
             value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value as Status | "ALL"); scrollToStatus(e.target.value as Status) }}
+            onChange={(e) => setStatusFilter(e.target.value as Status | "ALL")}
           >
-            <option value="ALL">Все</option>
-            {MOBILE_FLOW.map(st => (
-              <option key={st} value={st}>{STATUSES[st].label}</option>
+            <option value="ALL">Все статусы</option>
+            {(Object.keys(STATUSES) as Status[]).map(st => (
+              <option key={st} value={st}>{STATUSES[st].label} {counts[st] ? `(${counts[st]})` : ""}</option>
             ))}
           </select>
+          {/* Подсказка-счётчики (не кликабельные) */}
+          <div className="hidden md:flex items-center gap-2 text-xs text-gray-500">
+            {(Object.keys(STATUSES) as Status[]).map(st => (
+              <span key={st} className="inline-flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full border" />
+                {STATUSES[st].label}: {counts[st]}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Список заказов */}
+      <div className="px-2 space-y-3">
+        {filtered.length === 0 && (
+          <div className="text-sm text-gray-500 py-8 text-center border rounded-xl bg-white">Ничего не найдено</div>
         )}
-      </div>
 
-      <div
-        ref={boardRef}
-        className="flex md:grid md:grid-cols-4 gap-4 md:gap-6 w-full max-w-full overflow-x-auto overflow-y-hidden md:overflow-visible snap-x snap-proximity md:snap-none px-2 box-border min-h-0"
-        style={{ height: boardHeight ?? undefined, WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", touchAction: "pan-x" }}
-        onWheel={onWheelToHorizontal}
-      >
-        {Object.entries(STATUSES)
-          .filter(([status]) => visibleStatuses.includes(status as Status))
-          .map(([status, { label, color }]) => {
-            const list = ordersByStatus[status as Status] || []
-            return (
-              <div
-                key={status}
-                ref={(node) => { colRefs.current[status as Status] = node }}
-                className={`snap-start flex-none w-[90vw] md:w-auto ${color} border-2 rounded-2xl shadow-sm p-4 box-border min-h-0 max-w-full overflow-hidden`}
-                style={{ height: boardHeight ?? undefined, overscrollBehavior: "contain", touchAction: "pan-y" }}
-              >
-                <div className="sticky top-0 z-10 -mx-4 px-4 pt-1 pb-3 bg-gradient-to-b from-[inherit] to-[color:transparent]">
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="font-bold text-lg">{label} ({list.length})</h2>
-                  </div>
-                </div>
-                <div
-                  className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3 scrollbar-hide"
-                  style={{ maxHeight: boardHeight ? boardHeight - 56 : undefined, WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
-                >
-                  {list.map((order) => (
-                    <div key={order.id} className="p-4 bg-white rounded-xl shadow border border-gray-100 hover:shadow-md cursor-pointer" onClick={() => setSelectedOrder(order)}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-semibold leading-tight truncate">Заказ #{order.id}</p>
-                          <p className="text-sm text-gray-600 truncate">{order.user?.firstName} {order.user?.lastName} · {order.user?.email}</p>
-                        </div>
-                        <StatusBadge status={order.status ?? "NEW"} />
-                      </div>
-                      <div className="mt-1 text-xs text-gray-500">{new Date(order.createdAt).toLocaleString("ru-RU")}</div>
-                    </div>
-                  ))}
-                </div>
+        {filtered.map((order) => (
+          <button
+            key={order.id}
+            onClick={() => setSelectedOrder(order)}
+            className="w-full text-left p-4 bg-white rounded-xl shadow border border-gray-100 hover:shadow-md"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold leading-tight truncate">Заказ #{order.id}</p>
+                <p className="text-sm text-gray-600 truncate">{order.user?.firstName} {order.user?.lastName} · {order.user?.email}</p>
               </div>
-            )
-          })}
+              <StatusBadge status={(order.status ?? "NEW") as Status} />
+            </div>
+            <div className="mt-1 text-xs text-gray-500">{new Date(order.createdAt).toLocaleString("ru-RU")}</div>
+          </button>
+        ))}
       </div>
 
+      {/* Модалка с деталями + смена статуса */}
       {selectedOrder && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-3">
           <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-lg w-full max-w-lg p-6 relative">
             <button onClick={() => setSelectedOrder(null)} className="absolute top-3 right-3 text-gray-500 hover:text-black" aria-label="Закрыть">
               <IconX className="h-5 w-5" />
             </button>
+
             <h2 className="text-xl font-bold mb-1">Заказ #{selectedOrder.id}</h2>
             <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
               <span>{new Date(selectedOrder.createdAt).toLocaleString("ru-RU")}</span>
-              <StatusBadge status={selectedOrder.status ?? "NEW"} />
+              <StatusBadge status={(selectedOrder.status ?? "NEW") as Status} />
             </div>
+
             <div className="grid grid-cols-1 gap-2 text-sm">
-              <div className="flex items-center justify-between"><span className="text-gray-500">Клиент</span><span className="font-medium text-right truncate">{selectedOrder.user?.firstName} {selectedOrder.user?.lastName}</span></div>
-              <div className="flex items-center justify-between"><span className="text-gray-500">Email</span><span className="font-medium text-right break-all">{selectedOrder.user?.email}</span></div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500">Клиент</span>
+                <span className="font-medium text-right truncate">{selectedOrder.user?.firstName} {selectedOrder.user?.lastName}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500">Email</span>
+                <span className="font-medium text-right break-all">{selectedOrder.user?.email}</span>
+              </div>
             </div>
+
+            {/* Быстрая смена статуса */}
             <div className="mt-4 flex items-center gap-2">
               <select
                 className="rounded-lg border px-3 py-2 text-sm bg-white"
-                value={selectedOrder.status}
+                value={(selectedOrder.status ?? "NEW") as Status}
                 onChange={async (e) => {
                   const value = e.target.value as Status
                   await patchStatus(selectedOrder.id, value)
                   applyLocalUpdate(selectedOrder.id, { status: value })
                 }}
               >
-                {(isMobile ? MOBILE_FLOW : (Object.keys(STATUSES) as Status[])).map(st => (
+                {(Object.keys(STATUSES) as Status[]).map(st => (
                   <option key={st} value={st}>{STATUSES[st].label}</option>
                 ))}
               </select>
+              <button
+                onClick={async () => { const prev = prevOf((selectedOrder.status ?? "NEW") as Status); await patchStatus(selectedOrder.id, prev); applyLocalUpdate(selectedOrder.id, { status: prev }) }}
+                className="rounded-lg border px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100"
+              >
+                ← Назад
+              </button>
+              <button
+                onClick={async () => { const next = nextOf((selectedOrder.status ?? "NEW") as Status); await patchStatus(selectedOrder.id, next); applyLocalUpdate(selectedOrder.id, { status: next }) }}
+                className="rounded-lg border px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100"
+              >
+                Вперёд →
+              </button>
             </div>
+
             <h3 className="font-semibold mt-6 mb-2">Состав заказа</h3>
             <ul className="space-y-2 text-sm max-h-[40vh] overflow-y-auto pr-1">
               {(selectedOrder.products as any[])?.map((p, i) => (
@@ -281,3 +246,5 @@ export default function AdminOrdersKanban({ orders }: { orders: any[] | undefine
     </>
   )
 }
+
+export default AdminOrdersKanban;
