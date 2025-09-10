@@ -54,24 +54,39 @@ export default function AdminOrdersKanban({ orders }: { orders: any[] | undefine
   }, [])
 
   const boardRef = useRef<HTMLDivElement>(null)
+  const initialTopRef = useRef<number>(0)
   const [boardHeight, setBoardHeight] = useState<number | null>(null)
+
   useLayoutEffect(() => {
     const compute = () => {
       const el = boardRef.current
       if (!el) return
-      const rect = el.getBoundingClientRect()
-      const vh = window.innerHeight
       const bottomGap = 12
-      const h = Math.max(360, Math.floor(vh - rect.top - bottomGap))
+      const top = initialTopRef.current || el.getBoundingClientRect().top
+      const vh = window.innerHeight
+      const h = Math.max(360, Math.floor(vh - top - bottomGap))
       setBoardHeight(h)
+    }
+    // Зафиксируем исходный отступ сверху относительно viewport
+    if (boardRef.current) {
+      initialTopRef.current = boardRef.current.getBoundingClientRect().top
     }
     compute()
     window.addEventListener("resize", compute)
-    const ro = new ResizeObserver(() => compute())
-    ro.observe(document.body)
     return () => {
       window.removeEventListener("resize", compute)
-      ro.disconnect()
+    }
+  }, [])
+
+  // Запрещаем вертикальный скролл body на этой странице — вертикальный скролл только внутри колонок
+  useEffect(() => {
+    const prevOverflowY = document.body.style.overflowY
+    const prevOverscroll = (document.body.style as any).overscrollBehaviorY
+    document.body.style.overflowY = "hidden"
+    ;(document.body.style as any).overscrollBehaviorY = "contain"
+    return () => {
+      document.body.style.overflowY = prevOverflowY
+      ;(document.body.style as any).overscrollBehaviorY = prevOverscroll || "auto"
     }
   }, [])
 
@@ -130,6 +145,17 @@ export default function AdminOrdersKanban({ orders }: { orders: any[] | undefine
     return base.filter(s => s === statusFilter)
   }, [statusFilter, isMobile])
 
+  // конвертируем вертикальное колесо мыши в горизонтальный скролл на десктопе
+  const onWheelToHorizontal: React.WheelEventHandler<HTMLDivElement> = (e) => {
+    if (isMobile) return
+    const el = boardRef.current
+    if (!el) return
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      el.scrollLeft += e.deltaY
+      e.preventDefault()
+    }
+  }
+
   return (
     <>
       <div className="px-2 mb-3 flex flex-col gap-2">
@@ -168,8 +194,9 @@ export default function AdminOrdersKanban({ orders }: { orders: any[] | undefine
 
       <div
         ref={boardRef}
-        className="flex md:grid md:grid-cols-4 gap-4 md:gap-6 w-full max-w-full overflow-x-auto overflow-y-hidden md:overflow-visible snap-x snap-mandatory md:snap-none px-2 box-border min-h-0"
-        style={{ height: boardHeight ?? undefined, WebkitOverflowScrolling: "touch" }}
+        className="flex md:grid md:grid-cols-4 gap-4 md:gap-6 w-full max-w-full overflow-x-auto overflow-y-hidden md:overflow-visible snap-x snap-proximity md:snap-none px-2 box-border min-h-0"
+        style={{ height: boardHeight ?? undefined, WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", touchAction: "pan-x" }}
+        onWheel={onWheelToHorizontal}
       >
         {Object.entries(STATUSES)
           .filter(([status]) => visibleStatuses.includes(status as Status))
