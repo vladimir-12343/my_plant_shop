@@ -60,38 +60,47 @@ export default function CartDrawer() {
   }
 
   // Оформление заказа
-  const handleCheckout = async () => {
-    if (!cart.length || loading) return
-    setLoading(true)
-    try {
-      const products = cart.map((item: CartItem) => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-      }))
+  // Оформление заказа
+const handleCheckout = async () => {
+  if (!cart.length || loading) return
+  setLoading(true)
+  try {
+    const products = cart.map((item: CartItem) => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+    }))
 
-      const res = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ products, total }),
-      })
+    const res = await fetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ products, total }),
+      credentials: "include", // 👈 отправляем сессионную куку NextAuth
+    })
 
-      if (res.ok) {
-        clearCart()
-        setCartOpen(false)
-        router.push("/thank-you")
-      } else {
-        const err = await res.json().catch(() => ({}))
-        alert(err?.error || "Ошибка при оформлении заказа")
-      }
-    } catch (e) {
-      console.error(e)
-      alert("Ошибка сервера")
-    } finally {
-      setLoading(false)
+    if (res.status === 401) {
+      // не авторизован → закрываем корзину и на логин
+      setCartOpen(false)
+      router.push("/login?callbackUrl=/thank-you") // или ваш нужный callbackUrl
+      return
     }
+
+    if (res.ok) {
+      clearCart()
+      setCartOpen(false)
+      router.push("/thank-you")
+    } else {
+      const err = await res.json().catch(() => ({}))
+      alert(err?.error || "Ошибка при оформлении заказа")
+    }
+  } catch (e) {
+    console.error(e)
+    alert("Ошибка сервера")
+  } finally {
+    setLoading(false)
   }
+}
 
   // Закрытие по Esc + блокируем прокрутку фона, когда открыт дроуэр
   useEffect(() => {
